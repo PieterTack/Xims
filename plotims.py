@@ -130,7 +130,7 @@ def read_ims(imsfile):
     element_array = ""
     line = ""
     f = open(imsfile, "r")
-    line = f.readline()
+    f.readline()
     dim = [int(i) for i in f.readline().split(" ") if i.strip()] #should contain 3 or 4 elements, depending on ims dimensions (2 or 3D)
     if(len(dim) != 3):
         print("TODO") #TODO
@@ -291,7 +291,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, imsdata.max()-imsdata.min())
     else:
-        ctable = ctable
+        None # ctable = ctable
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol
@@ -303,7 +303,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         fs_im_tit = 20
         frame = True
     if type(clim) != type(None):
-        clim = clim
+        # clim = clim
         if(clim[0] > imsdata.min() and clim[1] < imsdata.max()):
             extend = 'both'
         elif clim[0] > imsdata.min():
@@ -1542,7 +1542,7 @@ class Plotims(QDialog):
             if(bmin < 0):
                 bmin = 0
         # check input values: max must be higher than min
-        if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
+        if(rmax <= rmin or gmax <= gmin or bmax <= bmin):
             print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
         else:
             rgb_im = prepare_rgb_data(imsdata, eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
@@ -1881,7 +1881,7 @@ class Plotims(QDialog):
             else:
                 bmax = float(self.rgb_blue_maxcut.text())
             # check input values: max must be higher than min
-            if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
+            if(rmax <= rmin or gmax <= gmin or bmax <= bmin):
                 print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
             else:
                 # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
