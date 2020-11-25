@@ -10,6 +10,7 @@ Based on plotims_gui from IDL
 import sys
 import numpy as np
 import matplotlib
+import h5py
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
@@ -21,7 +22,7 @@ from PySide2.QtWidgets import QCheckBox, QGroupBox, QPushButton, QLabel, \
     QRadioButton, QLineEdit, QTabWidget, QFileDialog, QComboBox
 
 
-class ims():
+class ims():    
     def __init__(self):
         self.data = np.zeros((2,2))
         self.names = ""
@@ -130,7 +131,7 @@ def read_ims(imsfile):
     element_array = ""
     line = ""
     f = open(imsfile, "r")
-    f.readline()
+    line = f.readline()
     dim = [int(i) for i in f.readline().split(" ") if i.strip()] #should contain 3 or 4 elements, depending on ims dimensions (2 or 3D)
     if(len(dim) != 3):
         print("TODO") #TODO
@@ -149,6 +150,52 @@ def read_ims(imsfile):
     print("Succesfully read "+imsfile)
     imsf.names = element_array
     return imsf
+
+def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
+    import tifffile
+    el2plot = np.array(el2plot)
+    imsdata = read_h5(h5file, h5channel)
+    
+    if el2plot.size == 1:
+        if el2plot not in imsdata.names:
+            print('ERROR: save_as_tif: '+el2plot+' not in imsdata.names')
+            return False
+        idx = imsdata.names.index(el2plot[i])
+        tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', imsdata.data[:,:,idx].astype('float32'), photometric='minisblack')
+        print('Saved '+savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif')
+    else:
+        for i in range(0, el2plot.size):
+            if el2plot[i] not in imsdata.names:
+                print('ERROR: save_as_tif: '+el2plot+' not in imsdata.names')
+                return False
+            idx = imsdata.names.index(el2plot[i])
+            tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', imsdata.data[:,:,idx].astype('float32'), photometric='minisblack')
+            print('Saved '+savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif')
+            
+def read_h5(h5file, channel):
+    file = h5py.File(h5file, 'r')
+    try:
+        imsdat = np.array(file['norm/'+channel+'/ims'])
+        names = file['norm/'+channel+'/names']
+    except:
+        try:
+            print("Note: unknown data directory: norm/"+channel+"/ims in "+h5file)
+            imsdat = np.array(file['fit/'+channel+'/ims'])
+            names = file['fit/'+channel+'/names']
+        except:
+            print("Error: unknown data directory: fit/"+channel+"/ims in "+h5file)
+            return None
+    
+    # rearrange ims array to match what plotims expects
+    imsdata = np.zeros((imsdat.shape[1], imsdat.shape[2], imsdat.shape[0]))
+    for i in range(0, imsdat.shape[0]):
+        imsdata[:, :, i] = imsdat[i, :, :]
+    
+    rv = ims()
+    rv.data = np.array(imsdata)
+    rv.names = [n.decode('utf8') for n in names[:]]
+    file.close()
+    return rv
 
 def write_ims(imsdata, names, filename):
     f = open(filename, "w")
@@ -291,7 +338,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, imsdata.max()-imsdata.min())
     else:
-        None # ctable = ctable
+        ctable = ctable
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol
@@ -303,7 +350,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         fs_im_tit = 20
         frame = True
     if type(clim) != type(None):
-        # clim = clim
+        clim = clim
         if(clim[0] > imsdata.min() and clim[1] < imsdata.max()):
             extend = 'both'
         elif clim[0] > imsdata.min():
@@ -339,6 +386,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
                 ws_hor = 0.3
             else:
                 ws_hor = 0.55
+        cb_opts.title = '\n'.join(cb_opts.title.split(';'))
     else:
         ws_ver, ws_hor = 0.35, 0.01
 
@@ -391,7 +439,6 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         if col_id >= ncols:
             col_id = 0
             row_id = row_id+1
-    plt.show()
     # save the image (and close it)
     if save:
         plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=420)
@@ -1542,7 +1589,7 @@ class Plotims(QDialog):
             if(bmin < 0):
                 bmin = 0
         # check input values: max must be higher than min
-        if(rmax <= rmin or gmax <= gmin or bmax <= bmin):
+        if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
             print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
         else:
             rgb_im = prepare_rgb_data(imsdata, eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
@@ -1881,7 +1928,7 @@ class Plotims(QDialog):
             else:
                 bmax = float(self.rgb_blue_maxcut.text())
             # check input values: max must be higher than min
-            if(rmax <= rmin or gmax <= gmin or bmax <= bmin):
+            if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
                 print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
             else:
                 # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
