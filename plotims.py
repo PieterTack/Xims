@@ -160,8 +160,10 @@ def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
         if el2plot not in imsdata.names:
             print('ERROR: save_as_tif: '+el2plot+' not in imsdata.names')
             return False
-        idx = imsdata.names.index(el2plot[i])
-        tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', imsdata.data[:,:,idx].astype('float32'), photometric='minisblack')
+        idx = imsdata.names.index(el2plot)
+        data = imsdata.data[:,:,idx]
+        data[np.isnan(data)] = 0.
+        tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', data.astype('float32'), photometric='minisblack')
         print('Saved '+savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif')
     else:
         for i in range(0, el2plot.size):
@@ -169,27 +171,34 @@ def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
                 print('ERROR: save_as_tif: '+el2plot+' not in imsdata.names')
                 return False
             idx = imsdata.names.index(el2plot[i])
-            tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', imsdata.data[:,:,idx].astype('float32'), photometric='minisblack')
+            data = imsdata.data[:,:,idx]
+            data[np.isnan(data)] = 0.
+            tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', data.astype('float32'), photometric='minisblack')
             print('Saved '+savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif')
             
-def read_h5(h5file, channel):
+def read_h5(h5file, channel): #TODO: make it possible for user to select subdir
     file = h5py.File(h5file, 'r')
     try:
-        imsdat = np.array(file['norm/'+channel+'/ims'])
-        names = file['norm/'+channel+'/names']
+        imsdat = np.array(file['quant/'+channel+'/ims'])
+        names = file['quant/'+channel+'/names']
     except:
         try:
-            print("Note: unknown data directory: norm/"+channel+"/ims in "+h5file)
-            imsdat = np.array(file['fit/'+channel+'/ims'])
-            names = file['fit/'+channel+'/names']
+            imsdat = np.array(file['norm/'+channel+'/ims'])
+            names = file['norm/'+channel+'/names']
         except:
-            print("Error: unknown data directory: fit/"+channel+"/ims in "+h5file)
-            return None
+            try:
+                print("Note: unknown data directory: norm/"+channel+"/ims in "+h5file)
+                imsdat = np.array(file['fit/'+channel+'/ims'])
+                names = file['fit/'+channel+'/names']
+            except:
+                print("Error: unknown data directory: fit/"+channel+"/ims in "+h5file)
+                return None
     
     # rearrange ims array to match what plotims expects
     imsdata = np.zeros((imsdat.shape[1], imsdat.shape[2], imsdat.shape[0]))
     for i in range(0, imsdat.shape[0]):
         imsdata[:, :, i] = imsdat[i, :, :]
+    imsdata[np.isnan(imsdata)] = 0.
     
     rv = ims()
     rv.data = np.array(imsdata)
@@ -1305,11 +1314,14 @@ class Plotims(QDialog):
         
     def browse_app(self):
         print("routine called")
-        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open IMS file", filter="IMS file (*.ims)")
+        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open IMS file", filter="IMS file (*.ims);;H5 file (*.h5)")
         self.filedir.setText("'"+"','".join([str(file) for file in self.filenames[0]])+"'")
         # read in first ims file, to obtain data on elements and dimensions
         if(self.filenames[0][0] != "''"):
-            self.ims_data = read_ims(self.filenames[0][0])
+            if self.filenames[0][0].split('.')[-1] == 'ims':
+                self.ims_data = read_ims(self.filenames[0][0])
+            elif self.filenames[0][0].split('.')[-1] == 'h5':
+                self.ims_data = read_h5(self.filenames[0][0], 'channel00')
             ims_dim = self.ims_data.data.shape
             self.npix_x.setText(str(ims_dim[1]))
             self.npix_y.setText(str(ims_dim[0]))
@@ -1632,7 +1644,7 @@ class Plotims(QDialog):
             cb_title = self.cb_title_conc.text().split(";")
             cb_title = "\n".join(cb_title)
         elif(self.cb_title_rand.isChecked()):
-            cb_title = self.cb_title_rand_lbl.txt().split(";")
+            cb_title = self.cb_title_rand_lbl.text().split(";")
             cb_title = "\n".join(cb_title)
         if(self.colortable_red.isChecked()):
             colortable = 'OrRd'
@@ -1816,7 +1828,10 @@ class Plotims(QDialog):
                     ims = self.ims_data
                     imsdata = self.ims_data.data.copy()
                 else:
-                    ims = read_ims(self.filenames[0][i])
+                    if self.filenames[0][i].split('.')[-1] == 'h5':
+                        ims = read_h5(self.filenames[0][i], 'channel00')
+                    elif self.filenames[0][i].split('.')[-1] == 'ims':
+                        ims = read_ims(self.filenames[0][i])
                     imsdata = ims.data.copy()
                 # perform data operations
                 imsdata = ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
@@ -1980,7 +1995,10 @@ class Plotims(QDialog):
                 imsdata = self.ims_data.data
             else:
                 print(self.filenames[0][i])
-                ims = read_ims(self.filenames[0][i])
+                if self.filenames[0][i].split('.')[-1] == 'h5':
+                        ims = read_h5(self.filenames[0][i], 'channel00')
+                elif self.filenames[0][i].split('.')[-1] == 'ims':
+                    ims = read_ims(self.filenames[0][i])
                 imsdata = ims.data
             filename_base = self.filenames[0][i].split(".")
             filename_base = filename_base[0]
