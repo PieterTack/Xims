@@ -8,7 +8,9 @@ Based on plotims_gui from IDL
 """
 
 import sys
+sys.path.insert(1, 'D:/School/PhD/python_pro/plotims')
 import numpy as np
+from scipy import stats
 import matplotlib
 import h5py
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
@@ -178,10 +180,18 @@ def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
             
 def read_h5(h5file, channel): #TODO: make it possible for user to select subdir
     file = h5py.File(h5file, 'r')
+    # try:
+    #     imsdat = np.array(file['rel_dif/'+channel+'/ims'])
+    #     names = file['rel_dif/'+channel+'/names']
+    # except:
     try:
-        imsdat = np.array(file['quant/'+channel+'/ims'])
-        names = file['quant/'+channel+'/names']
+        imsdat = np.array(file['tomo/'+channel+'/slices'])
+        names = file['tomo/'+channel+'/names']
     except:
+    #         try:
+    #             imsdat = np.array(file['quant/'+channel+'/ims'])
+    #             names = file['quant/'+channel+'/names']
+    #         except:
         try:
             imsdat = np.array(file['norm/'+channel+'/ims'])
             names = file['norm/'+channel+'/names']
@@ -333,6 +343,110 @@ def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=Non
         if(rotate.flipv == True):
             imsdata = np.flip(imsdata, 0)
     return imsdata
+
+def plot_correl(imsdata, imsnames, el_id=None, save=None):
+    # imsdata is a N*M*Y float array containing the signal intensities of N*M datapoints for Y elements
+    # imsnames is a string array of Y elements, containing the names of the corresponding elements
+    # el_id should be a integer list containing the indices of the elements to include in the plot
+    imsdata = np.array(imsdata)
+    imsnames = np.array(imsnames)
+    data =  imsdata.reshape(imsdata.shape[0]*imsdata.shape[1], imsdata.shape[2])
+    if el_id is not None:
+        data = data[:, el_id]
+        imsnames = imsnames[el_id]
+    
+    fig = plt.figure(figsize=(10,10))
+    gs = gridspec.GridSpec(imsnames.shape[0], imsnames.shape[0])
+    num_bins = 5
+    scatterplot = []
+    for i in range(imsnames.shape[0]):
+        for j in range(imsnames.shape[0]):
+            scatterplot.append(plt.subplot(gs[i,j]))
+            if j>i:
+                scatterplot[-1].plot(data[:,j], data[:,i], linewidth=0, marker='.', alpha=0.5)  # correlation plots
+                scatterplot[-1].margins(0.05)
+                # fit and plot regression line
+                z = np.polyfit(data[:,j], data[:,i], 1)
+                p = np.poly1d(z)
+                y_model = p(data[:,j])
+                n = data[:,i].size                                           # number of observations
+                m = z.size                                                 # number of parameters
+                dof = n - m                                                # degrees of freedom
+                t = stats.t.ppf(0.975, n - m)                              # used for CI and PI bands 0.975=95%CI
+                resid = data[:,i] - y_model                           
+                chi2 = np.sum((resid / y_model)**2)                        # chi-squared; estimates error in data
+                chi2_red = chi2 / dof                                      # reduced chi-squared; measures goodness of fit
+                s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
+                scatterplot[-1].plot(data[:,j], y_model, "--", color="black", linewidth=1.0, alpha=0.5, label="Fit")
+                x2 = np.linspace(np.min(data[:,j]), np.max(data[:,j]), 100)
+                y2 = p(x2)
+                ci = t * s_err * np.sqrt(1/n + (x2 - np.mean(data[:,j]))**2 / np.sum((data[:,j] - np.mean(data[:,j]))**2))
+                scatterplot[-1].fill_between(x2, y2 + ci, y2 - ci, color="gray", alpha=0.8)
+                # calculate R² value
+                rsq = np.sum((y_model - np.mean(data[:,i]))**2) / np.sum((data[:,i] - np.mean(data[:,i]))**2)
+                scatterplot[-1].annotate('R² = {:.3f} '.format(rsq), xy=(0.05, 0.85), xycoords='axes fraction', fontsize=8, color='gray')
+
+            elif j==i:
+                ymin = np.min(data[:,j]) - (np.max(data[:,j])-np.min(data[:,j]))*0.05
+                ymax = np.max(data[:,j]) + (np.max(data[:,j])-np.min(data[:,j]))*0.05
+                hist, edges = np.histogram(data[:,j], bins=num_bins*2)
+                hist = np.min(data[:,j]) + ((hist-np.min(hist))/(np.max(hist)-np.min(hist))) * (np.max(data[:,j])-np.min(data[:,j]))
+                xhist = np.zeros(hist.shape[0]*2)
+                yhist = np.zeros(hist.shape[0]*2)
+                for k in range(hist.shape[0]):
+                    if k == 0:
+                        xhist[k] = np.min(data[:,j])
+                        xhist[-1] = np.max(data[:,j])
+                    else:
+                        xhist[2*k-1:2*k+1] = edges[k]
+                    yhist[2*k:2*k+2] = hist[k]
+                scatterplot[-1].fill_between(xhist, yhist, np.zeros(hist.shape[0]*2)+ymin, color='tab:Blue', alpha=0.5)
+                scatterplot[-1].set_ylim(ymin, ymax)
+                # scatterplot[-1].hist(data[:,j], bins=num_bins*2, density=True, alpha=0.5) # density plots
+                # scatterplot[-1].margins(0.05)
+            else:
+                # kernel density estimate plots
+                kernel = stats.gaussian_kde(np.vstack([data[:,j], data[:,i]]))
+                xmin = np.min(data[:,j]) - (np.max(data[:,j])-np.min(data[:,j]))*0.05
+                xmax = np.max(data[:,j]) + (np.max(data[:,j])-np.min(data[:,j]))*0.05
+                ymin = np.min(data[:,i]) - (np.max(data[:,i])-np.min(data[:,i]))*0.05
+                ymax = np.max(data[:,i]) + (np.max(data[:,i])-np.min(data[:,i]))*0.05
+                X, Y = np.mgrid[xmin:xmax:50j, ymin:ymax:50j]
+                positions = np.vstack([X.ravel(), Y.ravel()])
+                Z = np.reshape(kernel(positions).T, X.shape)
+                scatterplot[-1].contour(X, Y, np.sqrt(Z), num_bins, cmap='Blues')
+                # calculate Pearson correlation and give idea of confidence interval
+                r, p = stats.pearsonr(data[:,j], data[:,i])
+                p_stars = ''
+                if p <= 0.05:  
+                    p_stars = '*'
+                if p <= 0.01:  
+                    p_stars = '**'
+                if p <= 0.001:  
+                    p_stars = '***'
+                scatterplot[-1].annotate('r = {:.2f} '.format(r) + p_stars, xy=(0.05, 0.85), xycoords='axes fraction', fontsize=8, color='gray')
+
+            if i == imsnames.shape[0]-1:
+                scatterplot[-1].set_xlabel(imsnames[j], fontsize=12)
+                scatterplot[-1].xaxis.set_major_locator(plt.MaxNLocator(3))
+            if i != imsnames.shape[0]-1:
+                scatterplot[-1].set_xticklabels('')
+                scatterplot[-1].set_xticks([])
+                
+            if j == 0:
+                scatterplot[-1].set_ylabel(imsnames[i], fontsize=12)
+                scatterplot[-1].yaxis.set_major_locator(plt.MaxNLocator(3))
+            if j != 0:
+                scatterplot[-1].set_yticklabels('')
+                scatterplot[-1].set_yticks([])
+             
+    plt.tight_layout()
+    plt.show()
+    if save is not None:
+        plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=420)
+        plt.close()        
+
+
 
 def add_scalebar(target, pix_size, scl_size, scale_text,scale_fontsize=16, dir=''):
     if(dir == 'horizontal' or dir == 'h'):
@@ -1314,7 +1428,7 @@ class Plotims(QDialog):
         
     def browse_app(self):
         print("routine called")
-        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open IMS file", filter="IMS file (*.ims);;H5 file (*.h5)")
+        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open IMS file", filter="H5 file (*.h5);;IMS file (*.ims)")
         self.filedir.setText("'"+"','".join([str(file) for file in self.filenames[0]])+"'")
         # read in first ims file, to obtain data on elements and dimensions
         if(self.filenames[0][0] != "''"):
@@ -2088,3 +2202,9 @@ if __name__ == "__main__":
     plotims = Plotims()
     plotims.show()
     sys.exit(app.exec_())
+
+    # f = h5py.File('../fit/scan00142_merge.h5','r')
+    # data = np.moveaxis(np.array(f['norm/channel00/ims']),0,-1)
+    # data[np.isnan(data)] = 0.
+    # names = [n.decode('utf8') for n in f['norm/channel00/names']]
+    # plot_correl(data, names, el_id=[1,5,14])
