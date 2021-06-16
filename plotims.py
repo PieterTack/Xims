@@ -133,7 +133,7 @@ def read_ims(imsfile):
     element_array = ""
     line = ""
     f = open(imsfile, "r")
-    line = f.readline()
+    f.readline()
     dim = [int(i) for i in f.readline().split(" ") if i.strip()] #should contain 3 or 4 elements, depending on ims dimensions (2 or 3D)
     if(len(dim) != 3):
         print("TODO") #TODO
@@ -187,20 +187,20 @@ def read_h5(h5file, channel): #TODO: make it possible for user to select subdir
     try:
         imsdat = np.array(file['tomo/'+channel+'/slices'])
         names = file['tomo/'+channel+'/names']
-    except:
+    except Exception:
     #         try:
     #             imsdat = np.array(file['quant/'+channel+'/ims'])
     #             names = file['quant/'+channel+'/names']
-    #         except:
+    #         except Exception:
         try:
             imsdat = np.array(file['norm/'+channel+'/ims'])
             names = file['norm/'+channel+'/names']
-        except:
+        except Exception:
             try:
                 print("Note: unknown data directory: norm/"+channel+"/ims in "+h5file)
                 imsdat = np.array(file['fit/'+channel+'/ims'])
                 names = file['fit/'+channel+'/names']
-            except:
+            except Exception:
                 print("Error: unknown data directory: fit/"+channel+"/ims in "+h5file)
                 return None
     
@@ -355,7 +355,7 @@ def plot_correl(imsdata, imsnames, el_id=None, save=None):
         data = data[:, el_id]
         imsnames = imsnames[el_id]
     
-    fig = plt.figure(figsize=(10,10))
+    plt.figure(figsize=(10,10))
     gs = gridspec.GridSpec(imsnames.shape[0], imsnames.shape[0])
     num_bins = 5
     scatterplot = []
@@ -374,8 +374,8 @@ def plot_correl(imsdata, imsnames, el_id=None, save=None):
                 dof = n - m                                                # degrees of freedom
                 t = stats.t.ppf(0.975, n - m)                              # used for CI and PI bands 0.975=95%CI
                 resid = data[:,i] - y_model                           
-                chi2 = np.sum((resid / y_model)**2)                        # chi-squared; estimates error in data
-                chi2_red = chi2 / dof                                      # reduced chi-squared; measures goodness of fit
+                # chi2 = np.sum((resid / y_model)**2)                        # chi-squared; estimates error in data
+                # chi2_red = chi2 / dof                                      # reduced chi-squared; measures goodness of fit
                 s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
                 scatterplot[-1].plot(data[:,j], y_model, "--", color="black", linewidth=1.0, alpha=0.5, label="Fit")
                 x2 = np.linspace(np.min(data[:,j]), np.max(data[:,j]), 100)
@@ -461,7 +461,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, imsdata.max()-imsdata.min())
     else:
-        ctable = ctable
+        pass # ctable = ctable
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol
@@ -473,7 +473,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         fs_im_tit = 20
         frame = True
     if type(clim) != type(None):
-        clim = clim
+        # clim = clim
         if(clim[0] > imsdata.min() and clim[1] < imsdata.max()):
             extend = 'both'
         elif clim[0] > imsdata.min():
@@ -1715,7 +1715,7 @@ class Plotims(QDialog):
             if(bmin < 0):
                 bmin = 0
         # check input values: max must be higher than min
-        if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
+        if rmax <= rmin or gmax <= gmin or bmax <= bmin:
             print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
         else:
             rgb_im = prepare_rgb_data(imsdata, eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
@@ -2057,7 +2057,7 @@ class Plotims(QDialog):
             else:
                 bmax = float(self.rgb_blue_maxcut.text())
             # check input values: max must be higher than min
-            if(rmax <= rmin or gmax <= gmin or rmax <= rmin):
+            if rmax <= rmin or gmax <= gmin or bmax <= bmin:
                 print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
             else:
                 # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)

@@ -5,7 +5,6 @@ Created on Mon Nov  9 11:08:34 2020
 @author: prrta
 """
 import h5py
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -16,7 +15,7 @@ def gplot_rh5(h5file, channel='channel00'):
     try:
         names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
         cfg = f['fit/'+channel+'/cfg'][()].decode('utf8')
-    except:
+    except Exception:
         names = None
         cfg = None
 
