@@ -14,6 +14,11 @@ import matplotlib
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
+import numpy as np
+import h5py
+import matplotlib.pyplot as plt
+from matplotlib import gridspec
+
 
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QPixmap, QImage, QDoubleValidator
@@ -28,8 +33,7 @@ class Poll_h5dir(QDialog):
         super(Poll_h5dir, self).__init__(parent)
         # extract all Dataset paths from the H5 file
         f = h5py.File(h5file, 'r')
-        self.paths = []
-        self.paths = self.descend(f)
+        self.paths = self.descend(f, paths=None)
         f.close()
         
         # spawn screen allowing the user to select a given path
@@ -50,10 +54,13 @@ class Poll_h5dir(QDialog):
         # handle events
         self.read_but.clicked.connect(self.read_path)
         
-    def descend(self, obj, paths=[]):
+    def descend(self, obj, paths=None):
+        if paths is None:
+            paths = []
+            
         if type(obj) in [h5py._hl.group.Group, h5py._hl.files.File]:
             for key in obj.keys():
-                self.descend(obj[key])
+                self.descend(obj[key], paths=paths)
         elif type(obj)==h5py._hl.dataset.Dataset:
             paths.append(obj.name)
         return paths
@@ -146,7 +153,7 @@ class Plotims(QDialog):
         # some variables to store data
         self.el_selection = ""
         self.element_array = ""
-        self.ims_data = ims()
+        self.ims_data = IMS.ims()
         self.units = ["Å","nm", "µm", "mm", "cm"]
         self.rot_angle = 0
         
