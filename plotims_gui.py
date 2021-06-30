@@ -16,16 +16,14 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy as np
 import h5py
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
 
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QPixmap, QImage, QDoubleValidator
-from PySide2.QtWidgets import QApplication, QDialog, QWidget
-from PySide2.QtWidgets import QHBoxLayout, QGridLayout, QVBoxLayout
-from PySide2.QtWidgets import QCheckBox, QGroupBox, QPushButton, QLabel, \
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QImage, QDoubleValidator
+from PyQt5.QtWidgets import QApplication, QDialog, QWidget, QHBoxLayout, \
+    QGridLayout, QVBoxLayout, QCheckBox, QGroupBox, QPushButton, QLabel, \
     QRadioButton, QLineEdit, QTabWidget, QFileDialog, QComboBox
+    
 
 
 class Poll_h5dir(QDialog):
@@ -152,7 +150,7 @@ class Plotims(QDialog):
 
         # some variables to store data
         self.el_selection = ""
-        self.element_array = ""
+        self.element_array = [""]
         self.ims_data = IMS.ims()
         self.units = ["Å","nm", "µm", "mm", "cm"]
         self.rot_angle = 0
