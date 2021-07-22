@@ -13,11 +13,22 @@ def gplot_rh5(h5file, channel='channel00'):
     f = h5py.File(h5file, 'r')
     spe = np.array(f['raw/'+channel+'/sumspec'])
     try:
-        names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
-        cfg = f['fit/'+channel+'/cfg'][()].decode('utf8')
-    except Exception:
+        names = [n for n in f['fit/'+channel+'/names']]
+        cfg = f['fit/'+channel+'/cfg'][()]
+        if type(names[0]) is type(bytes()):
+            names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
+        if type(cfg) is type(bytes()):
+            cfg = cfg.decode('utf8')
+    except KeyError:
         names = None
         cfg = None
+    # try:
+    #     names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
+    #     cfg = f['fit/'+channel+'/cfg'][()].decode('utf8')
+    #     print(type(names[0]))
+    # except Exception:
+    #     names = None
+    #     cfg = None
 
     if cfg is not None: # we're looking for the energy calibration values...
         from PyMca5.PyMca import ConfigDict
@@ -32,6 +43,7 @@ def gplot_rh5(h5file, channel='channel00'):
 def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None):
     # read the h5 file, formatted according to the XMI format
     #   If  fit was performed, also read in the PyMCA config file to figure out detector calibration
+    # TODO: add label function...
     h5file = np.array(h5file)
     plt.figure(figsize=(20,15))
     for j in range(0, h5file.size):
