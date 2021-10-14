@@ -1581,7 +1581,7 @@ class Plotims(QDialog):
             if self.plot_opts_colim.isChecked():
                 filename = filename_base+"_"+self.plt_opts.ct+"_overview"+addendum+out_ext
                 ims.data = imsdata
-                plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
+                IMS.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
 
             # perform individual image plotting
             if self.plot_opts_normplot.isChecked():
