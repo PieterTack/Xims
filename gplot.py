@@ -13,22 +13,15 @@ def gplot_rh5(h5file, channel='channel00'):
     f = h5py.File(h5file, 'r')
     spe = np.array(f['raw/'+channel+'/sumspec'])
     try:
-        names = [n for n in f['fit/'+channel+'/names']]
+        names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
         cfg = f['fit/'+channel+'/cfg'][()]
-        if type(names[0]) is type(bytes()):
-            names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
-        if type(cfg) is type(bytes()):
-            cfg = cfg.decode('utf8')
+        # if type(names[0]) is type(bytes()):
+        #     names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
+        # if type(cfg) is type(bytes()):
+        #     cfg = cfg.decode('utf8')
     except KeyError:
         names = None
         cfg = None
-    # try:
-    #     names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
-    #     cfg = f['fit/'+channel+'/cfg'][()].decode('utf8')
-    #     print(type(names[0]))
-    # except Exception:
-    #     names = None
-    #     cfg = None
 
     if cfg is not None: # we're looking for the energy calibration values...
         from PyMca5.PyMca import ConfigDict
@@ -43,15 +36,14 @@ def gplot_rh5(h5file, channel='channel00'):
 def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None):
     # read the h5 file, formatted according to the XMI format
     #   If  fit was performed, also read in the PyMCA config file to figure out detector calibration
-    # TODO: add label function...
     h5file = np.array(h5file)
     plt.figure(figsize=(20,15))
     for j in range(0, h5file.size):
         if h5file.size == 1:
-            savename = str(h5file).split('.')[0]+'.png'
+            savename = str(h5file).split('.')[0]+'_'+channel+'.png'
             h5 = str(h5file)
         else:
-            savename = str(h5file[0]).split('.')[0]+'-'+str(h5file[-1]).split('.')[0].split('/')[-1]+'.png'
+            savename = str(h5file[0]).split('.')[0]+'-'+str(h5file[-1]).split('.')[0].split('/')[-1]+'_'+channel+'.png'
             h5 = str(h5file[j])
         fileid = str(h5.split('.')[0].split('/')[-1])
         if channel == 'all':
@@ -69,7 +61,11 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                     gain = cfg[1]
                     xtitle = "Energy [keV]"
                 # plot the spectrum, Ylog, X-axis converted to Energy (keV) if PyMca cfg provided
-                plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=fileid+'_'+str(chnl[i]), linestyle='-')
+                if label is None:
+                    plt_lbl = fileid+'_'+str(chnl[i])
+                else:
+                    plt_lbl = label[i]
+                plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=plt_lbl, linestyle='-')
         else:        
             spe, names, cfg = gplot_rh5(h5, channel)
             if normtochan is not None:
@@ -85,7 +81,11 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
             # plot the spectrum, Ylog, X-axis converted to Energy (keV) if PyMca cfg provided
             if xrange is None:
                 xrange = (zero, (spe.shape[0]-1)*gain+zero)
-            plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=fileid+'_'+str(channel), linestyle='-')
+            if label is None:
+                plt_lbl = fileid+'_'+str(channel)
+            else:
+                plt_lbl = label
+            plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=plt_lbl, linestyle='-')
 
     ax = plt.gca()
     handles, labels = ax.get_legend_handles_labels()
