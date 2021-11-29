@@ -129,7 +129,11 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
 
-def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None, savename='plot.png'):
+def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None, savename='plot.png', plotelnames=True):
+    tickfontsize=22
+    titlefontsize=28
+    figsize= (21,7)#(20,15)
+
     data = np.array(data) #expected dimensions: [N, channels]
     if len(data.shape) == 1:
         data = np.reshape((1,data.shape[0]))
@@ -148,7 +152,7 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
             for linetype in config['peaks'][peak]:
                 names.append(peak+' '+str(linetype))    
     
-    plt.figure(figsize=(20,15))
+    plt.figure(figsize=figsize)
     for j in range(0, data.shape[0]):
         spe = data[j,:]
         if labels is None:
@@ -164,7 +168,7 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
         else:
             zero = cfg[0]
             gain = cfg[1]
-            xtitle = "Energy [keV]"
+            xtitle = "Energy (keV)"
         # plot the spectrum, Ylog, X-axis converted to Energy (keV) if PyMca cfg provided
         if xrange is None:
             xrange = (zero, (spe.shape[0]-1)*gain+zero)
@@ -176,10 +180,10 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
     plt.xlim(xrange)
     if yrange is not None:
         plt.ylim(yrange)
-    plt.legend(handles, labels, loc='best')
-    ax.set_xlabel(xtitle, fontsize=16)
-    ax.set_ylabel("Intensity [counts]", fontsize=16)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    plt.legend(handles, labels, loc='best', fontsize=tickfontsize)
+    ax.set_xlabel(xtitle, fontsize=titlefontsize)
+    ax.set_ylabel("Intensity (counts)", fontsize=titlefontsize)
+    ax.tick_params(axis='both', which='major', labelsize=tickfontsize)
     ax.tick_params(axis='x', which='minor', bottom=True)
     
     # add peak annotation if names and cfg provided
@@ -200,13 +204,14 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
             else:
                 energy = None
             # if energy not None, plot label at this energy value
-            if energy is not None:
+            if energy is not None and plotelnames is True:
                 idx = max(np.where(handles[0].get_xdata() <= energy)[-1])
                 yval = 10**(np.log10(max([hand.get_ydata()[idx] for hand in handles]))*1.025)
                 # plot the text label X% above this value
-                plt.text(energy, yval, n, horizontalalignment='center', fontsize=14)
+                plt.text(energy, yval, n, horizontalalignment='center', fontsize=tickfontsize)
 
     plt.show()
+    plt.tight_layout()
 
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
