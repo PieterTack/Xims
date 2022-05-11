@@ -305,6 +305,69 @@ def make_rgb_triangle():
             rotate_triangle[height-j-1,i,:] = triangle[i,j,:]
     return rotate_triangle
 
+def plot_rgb(imsdata, eoi_red, eoi_green, eoi_blue, filename, rmin=None, rmax=None, gmin=None, gmax=None, bmin=None, bmax=None, pix_size=None, scl_size=None, scl_unit=None):
+    # we expect type of eoi_red/green/blue to be integer indices. If they are string, let's look in imsdata.names for their indices
+    if type(eoi_red) is str:
+        eoi_red = imsdata.names.index(eoi_red)
+    if type(eoi_green) is str:
+        eoi_green = imsdata.names.index(eoi_green)
+    if type(eoi_blue) is str:
+        eoi_blue = imsdata.names.index(eoi_blue)
+    
+    if rmin is None:
+        rmin = np.min(imsdata.data[:,:,eoi_red])
+    if rmax is None:
+        rmax = np.max(imsdata.data[:,:,eoi_red])
+    if gmin is None:
+        gmin = np.min(imsdata.data[:,:,eoi_green])
+    if gmax is None:
+        gmax = np.max(imsdata.data[:,:,eoi_green])
+    if bmin is None:
+        bmin = np.min(imsdata.data[:,:,eoi_blue])
+    if bmax is None:
+        bmax = np.max(imsdata.data[:,:,eoi_blue])    
+
+    plt_opts = Plot_opts(aspect=1.)
+    
+    # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
+    rgb_im = prepare_rgb_data(imsdata.data.copy(), eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
+    # matplotlib plotting, to save image
+    fig = plt.figure(figsize=(10,10))
+    gs = gridspec.GridSpec(2,1, height_ratios=[0.2,1])
+    rgb0 = plt.subplot(gs[0], anchor='SW')
+    rgb_triangle = make_rgb_triangle()
+    rgb0.imshow(rgb_triangle.astype(np.uint8))
+    rgb0.axis('off')
+    # add labels on rgb triangle
+    green_lbl = imsdata.names[eoi_green].split("-")
+    green_lbl = green_lbl[0]
+    red_lbl = imsdata.names[eoi_red].split("-")
+    red_lbl = red_lbl[0]
+    blue_lbl = imsdata.names[eoi_blue].split("-")
+    blue_lbl = blue_lbl[0]
+    rgb0.text(0.5, 0.56, green_lbl, size=16, ha="center", transform=rgb0.transAxes) #green label
+    rgb0.text(0.25, 0.1, red_lbl, size=16, color='w', ha="center", transform=rgb0.transAxes) #red label
+    rgb0.text(0.75, 0.1, blue_lbl, size=16, color='w', ha="center", transform=rgb0.transAxes) #blue label
+    
+    # add text with cutoff values
+    red_cutoff = imsdata.names[eoi_red]+" cutoff value min: "+str(rmin)+" max:"+str(rmax)
+    green_cutoff = imsdata.names[eoi_green]+" cutoff value min: "+str(gmin)+" max:"+str(gmax)
+    blue_cutoff = imsdata.names[eoi_blue]+" cutoff value min: "+str(bmin)+" max:"+str(bmax)
+    rgb0.text(1.2, 0.75, red_cutoff, size=12, ha="left", transform=rgb0.transAxes)
+    rgb0.text(1.2, 0.625, green_cutoff, size=12, ha="left", transform=rgb0.transAxes)
+    rgb0.text(1.2, 0.5, blue_cutoff, size=12, ha="left", transform=rgb0.transAxes)
+    
+    # plot actual rgb image
+    rgb1 = plt.subplot(gs[1])
+    rgb1.imshow(rgb_im.astype(np.uint8), aspect=1./plt_opts.aspect, interpolation=plt_opts.interpol)
+    rgb1.axis('off')
+    plt.tight_layout()
+    # add scale_bar if requested
+    if pix_size is not None and scl_size is not None:
+        add_scalebar(rgb1, pix_size, scl_size, str(scl_size)+' '+scl_unit, dir='h')
+    fig.savefig(filename, dpi=420)
+    plt.close()  
+
 def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=None, rotate=None):
     # resize
     if resize:
