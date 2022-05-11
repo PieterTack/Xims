@@ -107,11 +107,11 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
         for n in names:
             if n != 'Rayl' and n != 'Compt':
                 if n.split(" ")[1][0] == 'K':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'L3') #Ka1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],'KL3') #Ka1
                 elif n.split(" ")[1][0] == 'L':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'3M5') #La1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],'L3M5') #La1
                 elif n.split(" ")[1][0] == 'M':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'5N7') #Ma1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],'M5N7') #Ma1
             elif n == 'Rayl':
                 energy = cfg[2]
             else:
@@ -190,15 +190,16 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
     if cfg is not None:
         # x axis of plot is in Energy (keV)
         # determine peak energy values (Rayl energy = cfg[2])
+        #TODO account for occurences of both Ka and Kb...
         from PyMca5.PyMcaPhysics.xrf import Elements
         for n in names:
             if n != 'Rayl' and n != 'Compt':
                 if n.split(" ")[1][0] == 'K':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'L3') #Ka1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],'KL3') #Ka1
                 elif n.split(" ")[1][0] == 'L':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'3M5') #La1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],+'L3M5') #La1
                 elif n.split(" ")[1][0] == 'M':
-                    energy = Elements.getxrayenergy(n.split(" ")[0],n.split(" ")[1]+'5N7') #Ma1
+                    energy = Elements.getxrayenergy(n.split(" ")[0],'M5N7') #Ma1
             elif n == 'Rayl':
                 energy = cfg[2]
             else:
