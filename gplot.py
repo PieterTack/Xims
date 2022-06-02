@@ -124,7 +124,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                 plt.text(energy, yval, n, horizontalalignment='center', fontsize=14)
     
     #TODO: Increase fontsizes, add minor tickmarks on x-axis        
-    plt.show()
+    #plt.show()
 
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
