@@ -534,19 +534,6 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         interpol = 'nearest'
         fs_im_tit = 20
         frame = True
-    if type(clim) != type(None):
-        # clim = clim
-        if(clim[0] > imsdata.min() and clim[1] < imsdata.max()):
-            extend = 'both'
-        elif clim[0] > imsdata.min():
-            extend = 'min'
-        elif clim[1] < imsdata.max():
-            extend = 'max'
-        else:
-            extend = 'neither'
-    else:
-        clim = None
-        extend = 'neither'
     # if this plot is part of a subplot, provide subplot axes. Otherwise extract plt axes
     if type(subplot) != type(None):
         ncols = subplot[0]
@@ -590,10 +577,24 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         else:
             data = imsdata[:,:,j]
             name = imsname[j]
+        if type(clim) != type(None):
+            # clim = clim
+            if(clim[j,0] > np.min(data) and clim[j,1] < np.max(data)):
+                extend = 'both'
+            elif clim[j,0] > np.min(data):
+                extend = 'min'
+            elif clim[j,1] < np.max(data):
+                extend = 'max'
+            else:
+                extend = 'neither'
+            limit = clim[j]
+        else:
+            limit = None
+            extend = 'neither'
         im_xstart = ws_rel_wide+(im_rel_wide+ws_rel_wide+pad/width)*col_id
         im_ystart = 1.-(im_rel_high+ws_rel_high)*(row_id+1)
         ax_im = fig.add_axes([im_xstart, im_ystart, im_rel_wide, im_rel_high])
-        img = ax_im.imshow(data, interpolation=interpol, cmap=ctable, aspect='auto', clim=clim)
+        img = ax_im.imshow(data, interpolation=interpol, cmap=ctable, aspect='auto', clim=limit)
         plt.text(dx/2, -1*(pad/(im_rel_high*height))*dy, name, ha='center', va='bottom', size=fs_im_tit, clip_on=False)
         if frame: # frame image or not
             ax_im.set(xticks=[], yticks=[])
@@ -663,8 +664,9 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
     datacube = np.zeros((imsdata.data.shape[0], imsdata.data.shape[1], cnt))
     names = list('')
     if clim:
-        cb_lim = np.zeros(2,cnt)
-        clim = cb_lim
+        cb_lim = np.zeros((cnt,2))
+    else:
+        cb_lim = None
     cnt = 0
     for i in range(len(el_selection)):
         if el_selection[i] in imsdata.names:
@@ -673,11 +675,12 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
                     datacube[:,:,cnt] = imsdata.data[:,:,k]
                     names.append(imsdata.names[k])
                     if clim:
-                        cb_lim[:,cnt] = clim[:,k]
+                        cb_lim[cnt,0] = np.min(imsdata.data[:,:,k])+clim[0]*(np.max(imsdata.data[:,:,k])-np.min(imsdata.data[:,:,k]))
+                        cb_lim[cnt,1] = np.min(imsdata.data[:,:,k])+clim[1]*(np.max(imsdata.data[:,:,k])-np.min(imsdata.data[:,:,k]))
                     cnt = cnt+1
 
     # Perform plotting. plot_image will know how to handle collated images based on amount of rows and columns.
-    plot_image(datacube, names, colortable, plt_opts=plt_opts, sb_opts=sb_opts, cb_opts=cb_opts, clim=clim, save=save, subplot=(ncols, nrows))
+    plot_image(datacube, names, colortable, plt_opts=plt_opts, sb_opts=sb_opts, cb_opts=cb_opts, clim=cb_lim, save=save, subplot=(ncols, nrows))
     # set fonts back to normal value for further imaging; probably useless as sb_opts will be local variable, but meh
     if sb_opts:
         sb_opts.fontsize = sb_opts.fontsize*2 

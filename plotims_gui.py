@@ -1545,7 +1545,8 @@ class Plotims(QDialog):
                     IMS.add_scalebar(rgb1, self.sb_opts.x_pix_size, self.sb_opts.x_scl_size, self.sb_opts.x_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='h')
                 if(self.plot_opts_sb.isChecked() and self.scale_yscale.isChecked()):
                     IMS.add_scalebar(rgb1, self.sb_opts.y_pix_size, self.sb_opts.y_scl_size, self.sb_opts.y_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='v')
-                filename = filename_base+"_rgb_"+red_lbl+green_lbl+blue_lbl+out_ext
+                filename = "_rgb_"+red_lbl+green_lbl+blue_lbl+out_ext
+                filename = filename_base+filename.replace(" ","") #remove all white spaces
                 fig.savefig(filename, dpi=420)
                 plt.close()        
         
@@ -1579,7 +1580,8 @@ class Plotims(QDialog):
 
             # perform collated imaging
             if self.plot_opts_colim.isChecked():
-                filename = filename_base+"_"+self.plt_opts.ct+"_overview"+addendum+out_ext
+                filename = "_"+self.plt_opts.ct+"_overview"+addendum+out_ext
+                filename = filename_base+filename.replace(" ","") #remove all white spaces
                 ims.data = imsdata
                 IMS.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
 
@@ -1596,7 +1598,8 @@ class Plotims(QDialog):
                             clim = self.plt_opts.clim[:,eoi]
                         else: clim = None
                         # perform plotting
-                        filename = filename_base+"_"+self.plt_opts.ct+"_"+ims.names[eoi]+addendum+out_ext
+                        filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+addendum+out_ext
+                        filename = filename_base+filename.replace(" ","") #remove all white spaces
                         IMS.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
 
         # colorbar cutoff image
@@ -1616,7 +1619,8 @@ class Plotims(QDialog):
                 clim[1] = imsdata[:,:,eoi].max()
             else:
                 clim[1] = float(self.cbcut_max.text())
-            filename = filename_base+"_"+self.plt_opts.ct+"_"+ims.names[eoi]+"_cbcut"+out_ext
+            filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+"_cbcut"+out_ext
+            filename = filename_base+filename.replace(" ","") #remove all white spaces
             IMS.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
             
         # ratio image
@@ -1640,7 +1644,8 @@ class Plotims(QDialog):
                 clim[1] = ratio.max()
             else:
                 clim[1] = float(self.ratio_max.text())
-            filename = filename_base+"_"+self.plt_opts.ct+"_"+ims.names[eoi_nom]+'_'+ims.names[eoi_den]+"_ratio"+out_ext
+            filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi_nom]+'_'+ims.names[eoi_den]+"_ratio"+out_ext
+            filename = filename_base+filename.replace(" ","") #remove all white spaces
             IMS.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
 
     def empty(self):
