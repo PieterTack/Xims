@@ -18,7 +18,7 @@ import numpy as np
 import h5py
 
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QLocale
 from PyQt5.QtGui import QPixmap, QImage, QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QDialog, QWidget, QHBoxLayout, \
     QGridLayout, QVBoxLayout, QCheckBox, QGroupBox, QPushButton, QLabel, \
@@ -416,7 +416,7 @@ class Plotims(QDialog):
         scale_line1_layout.addWidget(QLabel("Pixel Size:"))
         scale_line1_layout.addSpacing(3)
         validator = QDoubleValidator(-1E6, 1E6,3)
-        validator.setLocale(QtCore.QLocale("en_US")
+        validator.setLocale(QLocale("en_US"))
         self.scale_xpixsize = QLineEdit("")
         self.scale_xpixsize.setMaximumWidth(25)
         self.scale_xpixsize.setValidator(validator)
