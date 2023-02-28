@@ -771,7 +771,7 @@ class Plotims(QDialog):
         colortable_layout.addWidget(self.colortable_rand)
         self.colortable.setLayout(colortable_layout)
         layout_colortable.addWidget(self.colortable)
-        self.colortable_rand_lbl = QLineEdit("plasma")
+        self.colortable_rand_lbl = QLineEdit("viridis")
         self.colortable_rand_lbl.setMaximumWidth(70)
         layout_colortable.addWidget(self.colortable_rand_lbl)
         layout_colortable.addStretch()
