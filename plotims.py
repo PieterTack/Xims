@@ -179,30 +179,8 @@ def read_h5(h5file, datadir):
         except Exception:
             names = [''.encode('utf8')]*imsdat.shape[0]
     except Exception:
-        channel = 'channel00'
-        try:
-            imsdat = np.array(file['rel_dif/'+channel+'/ims'])
-            names = file['rel_dif/'+channel+'/names']
-        except Exception:
-            try:
-                imsdat = np.array(file['tomo/'+channel+'/ims'])
-                names = file['tomo/'+channel+'/names']
-            except Exception:
-                try:
-                    imsdat = np.array(file['quant/'+channel+'/ims'])
-                    names = file['quant/'+channel+'/names']
-                except Exception:
-                    try:
-                        imsdat = np.array(file['norm/'+channel+'/ims'])
-                        names = file['norm/'+channel+'/names']
-                    except Exception:
-                        try:
-                            print("Note: unknown data directory: norm/"+channel+"/ims in "+h5file)
-                            imsdat = np.array(file['fit/'+channel+'/ims'])
-                            names = file['fit/'+channel+'/names']
-                        except Exception:
-                            print("Error: unknown data directory: fit/"+channel+"/ims in "+h5file)
-                            return None
+        print("Error: unknown data directory: "+datadir+" in "+h5file)
+        return None
     
     # rearrange ims array to match what plotims expects
     imsdata = np.zeros((imsdat.shape[1], imsdat.shape[2], imsdat.shape[0]))
@@ -211,7 +189,7 @@ def read_h5(h5file, datadir):
     imsdata[np.isnan(imsdata)] = 0.
     
     rv = ims()
-    rv.data = np.array(imsdata)
+    rv.data = np.asarray(imsdata)
     rv.names = [n.decode('utf8') for n in names[:]]
     file.close()
     return rv
@@ -521,9 +499,7 @@ def add_scalebar(target, pix_size, scl_size, scale_text,scale_fontsize=16, dir='
 def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=None, clim=None, save=None, subplot=None):
     # set option for discrete colorbar, only if 10 or less values are plotted
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
-        ctable = plt.cm.get_cmap(ctable, imsdata.max()-imsdata.min())
-    else:
-        pass # ctable = ctable
+        ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()).astype(int))
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol

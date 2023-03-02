@@ -27,13 +27,13 @@ def gplot_rh5(h5file, channel='channel00'):
         from PyMca5.PyMca import ConfigDict
         config = ConfigDict.ConfigDict()
         config.read(cfg)
-        cfg = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy'][0]] #zero, gain, E_Rayleigh
+        cfg = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
 
     f.close()
 
     return spe, names, cfg
 
-def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None):
+def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None, peak_id=True):
     # read the h5 file, formatted according to the XMI format
     #   If  fit was performed, also read in the PyMCA config file to figure out detector calibration
     h5file = np.array(h5file)
@@ -93,14 +93,14 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
     plt.xlim(xrange)
     if yrange is not None:
         plt.ylim(yrange)
-    plt.legend(handles, labels, loc='best')
+    plt.legend(handles, labels, loc='best', fontsize=16)
     ax.set_xlabel(xtitle, fontsize=16)
     ax.set_ylabel("Intensity [counts]", fontsize=16)
     ax.tick_params(axis='both', which='major', labelsize=14)
     ax.tick_params(axis='x', which='minor', bottom=True)
     
     # add peak annotation if names and cfg provided
-    if cfg is not None and names is not None:
+    if peak_id is True and cfg is not None and names is not None:
         # x axis of plot is in Energy (keV)
         # determine peak energy values (Rayl energy = cfg[2])
         from PyMca5.PyMcaPhysics.xrf import Elements
@@ -121,10 +121,10 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                 idx = max(np.where(handles[0].get_xdata() <= energy)[-1])
                 yval = 10**(np.log10(max([hand.get_ydata()[idx] for hand in handles]))*1.025)
                 # plot the text label X% above this value
-                plt.text(energy, yval, n, horizontalalignment='center', fontsize=14)
+                plt.text(energy, yval, n, horizontalalignment='center', fontsize=16)
     
     #TODO: Increase fontsizes, add minor tickmarks on x-axis        
-    plt.show()
+    #plt.show()
 
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
