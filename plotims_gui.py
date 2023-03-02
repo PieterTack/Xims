@@ -162,7 +162,7 @@ class Plotims(QMainWindow):
 
         self.scroll = QScrollArea()
         self.widget = QWidget()
-        layout_main = QVBoxLayout() #TODO: make main scrollable
+        layout_main = QVBoxLayout()
         layout_browse = QHBoxLayout()
         layout_info = QHBoxLayout()
         layout_pixsize = QHBoxLayout()
