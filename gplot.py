@@ -33,7 +33,7 @@ def gplot_rh5(h5file, channel='channel00'):
 
     return spe, names, cfg
 
-def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None):
+def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None, peak_id=True):
     # read the h5 file, formatted according to the XMI format
     #   If  fit was performed, also read in the PyMCA config file to figure out detector calibration
     h5file = np.array(h5file)
@@ -100,7 +100,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
     ax.tick_params(axis='x', which='minor', bottom=True)
     
     # add peak annotation if names and cfg provided
-    if cfg is not None and names is not None:
+    if peak_id is True and cfg is not None and names is not None:
         # x axis of plot is in Energy (keV)
         # determine peak energy values (Rayl energy = cfg[2])
         from PyMca5.PyMcaPhysics.xrf import Elements
