@@ -113,7 +113,10 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                 elif n.split(" ")[1][0] == 'M':
                     energy = Elements.getxrayenergy(n.split(" ")[0],'M5N7') #Ma1
             elif n == 'Rayl':
-                energy = cfg[2]
+                if type(cfg[2]) is type(list()):
+                    energy = cfg[2][0]
+                else:
+                    energy = cfg[2]
             else:
                 energy = None
             # if energy not None, plot label at this energy value
