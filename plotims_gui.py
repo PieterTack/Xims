@@ -22,7 +22,8 @@ from PyQt5.QtCore import Qt, QLocale
 from PyQt5.QtGui import QPixmap, QImage, QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QDialog, QWidget, QHBoxLayout, \
     QGridLayout, QVBoxLayout, QCheckBox, QGroupBox, QPushButton, QLabel, \
-    QRadioButton, QLineEdit, QTabWidget, QFileDialog, QComboBox
+    QRadioButton, QLineEdit, QTabWidget, QFileDialog, QComboBox, QScrollArea, \
+    QMainWindow
     
 
 
@@ -143,7 +144,7 @@ class El_sel_window(QDialog):
             self.none.setChecked(False)
                 
 
-class Plotims(QDialog):
+class Plotims(QMainWindow):
     
     def __init__(self, parent=None):
         super(Plotims, self).__init__(parent)
@@ -158,6 +159,9 @@ class Plotims(QDialog):
         # create widgets
 
         # create main layout for widgets
+
+        self.scroll = QScrollArea()
+        self.widget = QWidget()
         layout_main = QVBoxLayout() #TODO: make main scrollable
         layout_browse = QHBoxLayout()
         layout_info = QHBoxLayout()
@@ -875,11 +879,16 @@ class Plotims(QDialog):
         layout_main.addLayout(layout_exe_buts)
 
         # set dialog layout
-        self.setLayout(layout_main)
+        self.widget.setLayout(layout_main)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.widget)
+
+        self.setCentralWidget(self.scroll)
         self.opt_tabs.setCurrentWidget(self.tab_colim)
 
         # add button signal to greeting slot
         self.setWindowTitle("Plotims GUI")
+        self.setGeometry(50, 50, 665, 830)
         self.browse.clicked.connect(self.browse_app) # browse button
         self.filedir.returnPressed.connect(self.browse_app)
         self.close.clicked.connect(self.quit_app) # close button
