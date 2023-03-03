@@ -15,10 +15,6 @@ def gplot_rh5(h5file, channel='channel00'):
     try:
         names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
         cfg = f['fit/'+channel+'/cfg'][()]
-        # if type(names[0]) is type(bytes()):
-        #     names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
-        # if type(cfg) is type(bytes()):
-        #     cfg = cfg.decode('utf8')
     except KeyError:
         names = None
         cfg = None
@@ -144,12 +140,12 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
         print("Error: expected data dimensions: [N, channels]; ", data.shape)
         return
     
+    names = []
     if cfg is not None: # we're looking for the energy calibration values...
         from PyMca5.PyMca import ConfigDict
         config = ConfigDict.ConfigDict()
         config.read(cfg)
         cfg = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy'][0]] #zero, gain, E_Rayleigh
-        names = []
         peaks = list(config['peaks'].keys())
         for peak in peaks:
             for linetype in config['peaks'][peak]:

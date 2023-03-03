@@ -935,7 +935,7 @@ class Plotims(QMainWindow):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open IMS file", filter="H5 file (*.h5);;IMS file (*.ims)")
         self.filedir.setText("'"+"','".join([str(file) for file in self.filenames[0]])+"'")
         # read in first ims file, to obtain data on elements and dimensions
-        if(self.filenames[0][0] != "''"):
+        if(self.filenames[0][0] != "''" and self.filenames[0][0] != ""):
             if self.filenames[0][0].split('.')[-1] == 'ims':
                 self.ims_data = IMS.read_ims(self.filenames[0][0])
             elif self.filenames[0][0].split('.')[-1] == 'h5':
@@ -1025,8 +1025,6 @@ class Plotims(QMainWindow):
         elif(self.sender() == self.plot_opts_colim):    
                 if(self.plot_opts_colim.isChecked()):
                     self.opt_tabs.setCurrentWidget(self.tab_colim)
-        else:
-            None
 
     def pix_scale_toggle(self):
         if(self.pix_scale.isChecked()):
@@ -1706,9 +1704,6 @@ class Plotims(QMainWindow):
             filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi_nom]+'_'+ims.names[eoi_den]+"_ratio"+out_ext
             filename = filename_base+filename.replace(" ","") #remove all white spaces
             IMS.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
-
-    def empty(self):
-        None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
