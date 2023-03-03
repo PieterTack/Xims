@@ -1705,9 +1705,6 @@ class Plotims(QMainWindow):
             filename = filename_base+filename.replace(" ","") #remove all white spaces
             IMS.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
 
-    # def empty(self):
-    #     None
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     plotims = Plotims()
