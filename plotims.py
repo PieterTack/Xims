@@ -122,21 +122,21 @@ class Collated_image_opts():
 def read_ims(imsfile):
     element_array = ""
     line = ""
-    f = open(imsfile, "r")
-    f.readline()
-    dim = [int(i) for i in f.readline().split(" ") if i.strip()] #should contain 3 or 4 elements, depending on ims dimensions (2 or 3D)
-    if(len(dim) != 3):
-        print("TODO") #TODO
-    imsf = ims()
-    imsf.data = np.zeros(dim)
-    for j in range(0, dim[2]):
-        for k in range(0,dim[1]):
-            dim0count = 0
-            while dim0count < dim[0]:
-                line = [float(i) for i in f.readline().split(" ") if i.strip()]
-                imsf.data[dim0count:dim0count+len(line),k,j] = line
-                dim0count += len(line)
-    element_array = f.readlines()
+    with open(imsfile, "r") as f:
+        f.readline()
+        dim = [int(i) for i in f.readline().split(" ") if i.strip()] #should contain 3 or 4 elements, depending on ims dimensions (2 or 3D)
+        if(len(dim) != 3):
+            print("TODO") #TODO
+        imsf = ims()
+        imsf.data = np.zeros(dim)
+        for j in range(0, dim[2]):
+            for k in range(0,dim[1]):
+                dim0count = 0
+                while dim0count < dim[0]:
+                    line = [float(i) for i in f.readline().split(" ") if i.strip()]
+                    imsf.data[dim0count:dim0count+len(line),k,j] = line
+                    dim0count += len(line)
+        element_array = f.readlines()
     for i in range(0,dim[2]):
         element_array[i] = element_array[i].strip()
     print("Succesfully read "+imsfile)
@@ -167,6 +167,7 @@ def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
             data[np.isnan(data)] = 0.
             tifffile.imwrite(savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif', data.astype('float32'), photometric='minisblack')
             print('Saved '+savefile_prefix+'_'+''.join(imsdata.names[idx].split(" "))+'.tif')
+    return True
             
 def read_h5(h5file, datadir):
     file = h5py.File(h5file, 'r')
@@ -195,18 +196,17 @@ def read_h5(h5file, datadir):
     return rv
 
 def write_ims(imsdata, names, filename):
-    f = open(filename, "w")
-    f.write(str(len(imsdata.shape)-1)+'\n')
-    line = list('')
-    for i in range(0, len(imsdata.shape)):
-        line.append(str(imsdata.shape[i]))
-    f.write(" ".join(line)+'\n')
-    for i in range(0, len(names)):
-        for j in range(0, imsdata.shape[1]):
-            f.write(str(" ".join(str(k) for k in imsdata[:,j,i]))+'\n')
-    for i in range(0, len(names)):
-        f.write(names[i]+'\n')
-    f.close()
+    with open(filename, "w") as f:
+        f.write(str(len(imsdata.shape)-1)+'\n')
+        line = list('')
+        for i in range(0, len(imsdata.shape)):
+            line.append(str(imsdata.shape[i]))
+        f.write(" ".join(line)+'\n')
+        for i in range(0, len(names)):
+            for j in range(0, imsdata.shape[1]):
+                f.write(str(" ".join(str(k) for k in imsdata[:,j,i]))+'\n')
+        for i in range(0, len(names)):
+            f.write(names[i]+'\n')
 
 def prepare_rgb_data(data, r_eoi, g_eoi, b_eoi, rmin, rmax, gmin, gmax, bmin, bmax):
     rgb_im = np.zeros([data.shape[0], data.shape[1], 3])
@@ -522,6 +522,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
     img_high = 6 # height in inches of all image rows stacked, omitting whitespaces
     pad = 0.05 # padding between cb or title and image in inches
     
+    ws_ver, ws_hor = 0.35, 0.01
     if cb_opts:
         if cb_opts.dir == 'vertical': #---vertical colorbar---#
             ws_ver = 0.35 # vertical whitespace between images [inch]
@@ -535,8 +536,6 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
             else:
                 ws_hor = 0.55
         cb_opts.title = '\n'.join(cb_opts.title.split(';'))
-    else:
-        ws_ver, ws_hor = 0.35, 0.01
 
     height = img_high + (nrows+1)*(ws_ver+pad)  # width and height are in inches
     width = (ws_hor+pad)*(ncols+1) + ncols*(img_high/nrows)*(dx/dy)*aspect # each image has width dependent on aspect ratio and dx/dy ratio
