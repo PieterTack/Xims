@@ -145,8 +145,11 @@ def read_ims(imsfile):
 
 def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
     import tifffile
-    el2plot = np.array(el2plot)
     imsdata = read_h5(h5file, h5channel)
+    if el2plot == 'All':
+        el2plot = np.asarray(imsdata.names)
+    else:
+        el2plot = np.array(el2plot)
     
     if el2plot.size == 1:
         if el2plot not in imsdata.names:
