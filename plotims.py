@@ -502,7 +502,7 @@ def add_scalebar(target, pix_size, scl_size, scale_text,scale_fontsize=16, dir='
 def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=None, clim=None, save=None, subplot=None):
     # set option for discrete colorbar, only if 10 or less values are plotted
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
-        ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()).astype(int))
+        ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()+1).astype(int))
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol
