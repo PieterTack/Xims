@@ -388,9 +388,25 @@ def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=Non
     return imsdata
 
 def plot_correl(imsdata, imsnames, el_id=None, save=None):
-    # imsdata is a N*M*Y float array containing the signal intensities of N*M datapoints for Y elements
-    # imsnames is a string array of Y elements, containing the names of the corresponding elements
-    # el_id should be a integer list containing the indices of the elements to include in the plot
+    """
+    Display correlation plots.
+
+    Parameters
+    ----------
+    imsdata : float array
+        imsdata is a N*M*Y float array containing the signal intensities of N*M datapoints for Y elements.
+    imsnames : string
+        imsnames is a string array of Y elements, containing the names of the corresponding elements.
+    el_id : integer list, optional
+        el_id should be a integer list containing the indices of the elements to include in the plot. The default is None.
+    save : string, optional
+        File path as which the image should be saved. The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
     imsdata = np.array(imsdata)
     imsnames = np.array(imsnames)
     data =  imsdata.reshape(imsdata.shape[0]*imsdata.shape[1], imsdata.shape[2])
