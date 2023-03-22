@@ -573,15 +573,15 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
             name = imsname[j]
         if type(clim) != type(None):
             # clim = clim
-            if(clim[j,0] > np.min(data) and clim[j,1] < np.max(data)):
+            if(clim[0] > np.min(data) and clim[1] < np.max(data)):
                 extend = 'both'
-            elif clim[j,0] > np.min(data):
+            elif clim[0] > np.min(data):
                 extend = 'min'
-            elif clim[j,1] < np.max(data):
+            elif clim[1] < np.max(data):
                 extend = 'max'
             else:
                 extend = 'neither'
-            limit = clim[j]
+            limit = clim
         else:
             limit = None
             extend = 'neither'
