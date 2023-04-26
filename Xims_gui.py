@@ -9,7 +9,7 @@ Based on plotims_gui from IDL
 import sys
 sys.path.insert(1, 'D:/School/PhD/python_pro/plotims')
 
-import plotims as IMS
+import Xims
 import matplotlib
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
 import matplotlib.pyplot as plt
@@ -23,7 +23,7 @@ from PyQt5.QtGui import QPixmap, QImage, QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QDialog, QWidget, QHBoxLayout, \
     QGridLayout, QVBoxLayout, QCheckBox, QGroupBox, QPushButton, QLabel, \
     QRadioButton, QLineEdit, QTabWidget, QFileDialog, QComboBox, QScrollArea, \
-    QMainWindow
+    QMainWindow, QListWidget, QAbstractItemView
     
 
 
@@ -35,15 +35,16 @@ class Poll_h5dir(QDialog):
         self.paths = self.descend(f, paths=None)
         f.close()
         
-        # spawn screen allowing the user to select a given path
-        #   in this case, due to plotims only accepting ims directories, prune the list
+        # spawn screen allowing the user to select a given path, or multiple
+        #   in this case, due to Xims only accepting ims directories, prune the list
         self.paths = [path for path in self.paths if 'ims' in path]        
         # build widgets
         layout = QVBoxLayout()
         self.task = QLabel('Select your H5 file directory of choice:')
         layout.addWidget(self.task)
-        self.path_select = QComboBox()
+        self.path_select = QListWidget()
         self.path_select.addItems(self.paths)
+        self.path_select.setSelectionMode(QAbstractItemView.ExtendedSelection)
         layout.addWidget(self.path_select)
         self.read_but = QPushButton("Read")
         layout.addWidget(self.read_but)
@@ -65,7 +66,7 @@ class Poll_h5dir(QDialog):
         return paths
     
     def read_path(self):
-        self.h5dir = self.paths[self.path_select.currentIndex()]
+        self.h5dir = [item.text() for item in self.path_select.selectedItems()]
         # close spawned window and return selected elements...
         self.hide()
         super().accept()
@@ -152,7 +153,7 @@ class Plotims(QMainWindow):
         # some variables to store data
         self.el_selection = ""
         self.element_array = [""]
-        self.ims_data = IMS.ims()
+        self.ims_data = Xims.ims()
         self.units = ["Å","nm", "µm", "mm", "cm"]
         self.rot_angle = 0
         
@@ -887,7 +888,7 @@ class Plotims(QMainWindow):
         self.opt_tabs.setCurrentWidget(self.tab_colim)
 
         # add button signal to greeting slot
-        self.setWindowTitle("Plotims GUI")
+        self.setWindowTitle("Xims GUI")
         self.setGeometry(50, 50, 665, 830)
         self.browse.clicked.connect(self.browse_app) # browse button
         self.filedir.returnPressed.connect(self.browse_app)
@@ -937,13 +938,13 @@ class Plotims(QMainWindow):
         # read in first ims file, to obtain data on elements and dimensions
         if(self.filenames[0][0] != "''" and self.filenames[0][0] != ""):
             if self.filenames[0][0].split('.')[-1] == 'ims':
-                self.ims_data = IMS.read_ims(self.filenames[0][0])
+                self.ims_data = Xims.read_ims(self.filenames[0][0])
             elif self.filenames[0][0].split('.')[-1] == 'h5':
                 self.h5dir = []
                 self.new_window = Poll_h5dir(self.filenames[0][0])
                 if self.new_window.exec_() == QDialog.Accepted:
                     self.h5dir = self.new_window.h5dir
-                self.ims_data = IMS.read_h5(self.filenames[0][0], self.h5dir)
+                self.ims_data = Xims.read_h5(self.filenames[0][0], self.h5dir)
             ims_dim = self.ims_data.data.shape
             self.npix_x.setText(str(ims_dim[1]))
             self.npix_y.setText(str(ims_dim[0]))
@@ -1055,7 +1056,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_red.currentIndex()].min()
         eoi_max = imsdata[:,:,self.rgb_red.currentIndex()].max()
         self.rgb_red_minint.setText(str(eoi_min))
@@ -1065,7 +1066,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_green.currentIndex()].min()
         eoi_max = imsdata[:,:,self.rgb_green.currentIndex()].max()
         self.rgb_green_minint.setText(str(eoi_min))
@@ -1075,7 +1076,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_blue.currentIndex()].min()
         eoi_max = imsdata[:,:,self.rgb_blue.currentIndex()].max()
         self.rgb_blue_minint.setText(str(eoi_min))
@@ -1085,7 +1086,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.cbcut_eoi.currentIndex()].min()
         eoi_max = imsdata[:,:,self.cbcut_eoi.currentIndex()].max()
         self.cbcut_min.setText(str(eoi_min))
@@ -1096,7 +1097,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_nom = self.ratio_nom.currentIndex()
         eoi_den = self.ratio_den.currentIndex()
         ratio = np.zeros((imsdata.shape[0], imsdata.shape[1]))
@@ -1124,7 +1125,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         # update the appropriate fields
         self.tab_bin_newx.setText(str(imsdata.shape[1]))
         self.tab_bin_newy.setText(str(imsdata.shape[0]))
@@ -1135,7 +1136,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi = self.cbcut_eoi.currentIndex()
         if self.cbcut_min.text() == '':
             eoi_min = imsdata[:,:,eoi].min()
@@ -1145,7 +1146,7 @@ class Plotims(QMainWindow):
              eoi_max = imsdata[:,:,eoi].max()
         else:
              eoi_max = float(self.cbcut_max.text())
-        rgb_im = IMS.prepare_rgb_data(imsdata, eoi, eoi, eoi,  eoi_min,  eoi_max,  eoi_min,  eoi_max,  eoi_min,  eoi_max)
+        rgb_im = Xims.prepare_rgb_data(imsdata, eoi, eoi, eoi,  eoi_min,  eoi_max,  eoi_min,  eoi_max,  eoi_min,  eoi_max)
         rgb_im_trp = rgb_im.astype(np.uint8).copy() # need to copy data for QImage
         qim = QImage(rgb_im_trp, rgb_im_trp.shape[1], rgb_im_trp.shape[0], 3*rgb_im_trp.shape[1], QImage.Format_RGB888)
         pixmap = QPixmap(qim)
@@ -1156,7 +1157,7 @@ class Plotims(QMainWindow):
         # extract data and perform various operations
         imsdata = self.ims_data.data.copy()
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_nom = self.ratio_nom.currentIndex()
         eoi_den = self.ratio_den.currentIndex()
         ratio = np.zeros((imsdata.shape[0], imsdata.shape[1]))
@@ -1171,7 +1172,7 @@ class Plotims(QMainWindow):
             eoi_max = ratio.max()
         else:
             eoi_max = float(self.ratio_max.text())
-        rgb_im = IMS.prepare_rgb_data(ratio, None, None, None,  eoi_min,  eoi_max,  eoi_min,  eoi_max,  eoi_min,  eoi_max)
+        rgb_im = Xims.prepare_rgb_data(ratio, None, None, None,  eoi_min,  eoi_max,  eoi_min,  eoi_max,  eoi_min,  eoi_max)
         rgb_im_trp = rgb_im.astype(np.uint8).copy() # need to copy data for QImage
         qim = QImage(rgb_im_trp, rgb_im_trp.shape[1], rgb_im_trp.shape[0], 3*rgb_im_trp.shape[1], QImage.Format_RGB888)
         pixmap = QPixmap(qim)
@@ -1183,7 +1184,7 @@ class Plotims(QMainWindow):
         imsdata = self.ims_data.data.copy()
         # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
         self.set_opts()
-        imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+        imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         # select rgb channels
         eoi_red = self.rgb_red.currentIndex()
         eoi_green = self.rgb_green.currentIndex()
@@ -1224,7 +1225,7 @@ class Plotims(QMainWindow):
         if rmax <= rmin or gmax <= gmin or bmax <= bmin:
             print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
         else:
-            rgb_im = IMS.prepare_rgb_data(imsdata, eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
+            rgb_im = Xims.prepare_rgb_data(imsdata, eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
             rgb_im_trp = rgb_im.astype(np.uint8).copy() # need to copy data for QImage
             qim = QImage(rgb_im_trp, rgb_im_trp.shape[1], rgb_im_trp.shape[0], 3*rgb_im_trp.shape[1], QImage.Format_RGB888)
             pixmap = QPixmap(qim)
@@ -1277,7 +1278,7 @@ class Plotims(QMainWindow):
         
         # retreive binning parameters
         if(self.data_opts_bin.isChecked()):
-            self.bin_opts = IMS.Binning()
+            self.bin_opts = Xims.Binning()
             if(self.tab_bin_binsize.isChecked()): # join every X and Y pixels to one. Add them to preserve total flux.
                 if(self.tab_bin_xbin.text() == ""):
                     binx = 1
@@ -1318,7 +1319,7 @@ class Plotims(QMainWindow):
             
         # rotate
         if(self.plot_opts_rotate.isChecked()):
-            self.rot_opts = IMS.Rotate()
+            self.rot_opts = Xims.Rotate()
             self.rot_opts.angle = self.rot_angle
             if(self.rotate_fliph.isChecked()):
                 self.rot_opts.fliph = True
@@ -1419,7 +1420,7 @@ class Plotims(QMainWindow):
             
         #resize
         if(self.data_opts_resize.isChecked()):
-            self.resize_opts = IMS.Resize()
+            self.resize_opts = Xims.Resize()
             if(self.resize_xstart.text() == ""):
                 self.resize_opts.xstart = 0
             else:
@@ -1449,12 +1450,12 @@ class Plotims(QMainWindow):
                     imsdata = self.ims_data.data.copy()
                 else:
                     if self.filenames[0][i].split('.')[-1] == 'h5':
-                        ims = IMS.read_h5(self.filenames[0][i], self.h5dir)
+                        ims = Xims.read_h5(self.filenames[0][i], self.h5dir)
                     elif self.filenames[0][i].split('.')[-1] == 'ims':
-                        ims = IMS.read_ims(self.filenames[0][i])
+                        ims = Xims.read_ims(self.filenames[0][i])
                     imsdata = ims.data.copy()
                 # perform data operations
-                imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+                imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
                 # obtain min and max for each element, and check if higher than previously registered value
                 for j in range(len(self.el_selection)):
                     # find index of selected element
@@ -1480,14 +1481,14 @@ class Plotims(QMainWindow):
                 colim_ncol = int(self.colim_ncol.text())
             colim_nrow = int(np.ceil(len(self.el_selection)/colim_ncol))
             colim_cb = self.colim_plotcb.isChecked()
-            self.colim_opts = IMS.Collated_image_opts(ncol=colim_ncol, nrow=colim_nrow, cb=colim_cb)
+            self.colim_opts = Xims.Collated_image_opts(ncol=colim_ncol, nrow=colim_nrow, cb=colim_cb)
         else:
             self.colim_opts = None
 
         # set plotting options
-        self.plt_opts = IMS.Plot_opts(aspect=xpix/ypix, interpol=interpol, title_fontsize=fs_im_tit, clim=clim, ct=colortable, n2z=neg2zero, frame=self.plot_opts_frame.isChecked())
+        self.plt_opts = Xims.Plot_opts(aspect=xpix/ypix, interpol=interpol, title_fontsize=fs_im_tit, clim=clim, ct=colortable, n2z=neg2zero, frame=self.plot_opts_frame.isChecked())
         if(self.plot_opts_sb.isChecked()):
-            self.sb_opts = IMS.Scale_opts()
+            self.sb_opts = Xims.Scale_opts()
             self.sb_opts.fontsize = fs_scale
             if(self.scale_xscale.isChecked()):
                 self.sb_opts.xscale = True
@@ -1501,7 +1502,7 @@ class Plotims(QMainWindow):
                 self.sb_opts.y_scl_text = self.scale_ysclsize.text()+' '+self.scale_pixunit.currentText()
         else: self.sb_opts = None
         if(cb_dir == 'vertical' or cb_dir == 'horizontal'):
-            self.cb_opts = IMS.Colorbar_opt(discr=cb_discr, dir=cb_dir, fs_num=fs_cb_num, fs_title=fs_cb_tit, title=cb_title)
+            self.cb_opts = Xims.Colorbar_opt(discr=cb_discr, dir=cb_dir, fs_num=fs_cb_num, fs_title=fs_cb_tit, title=cb_title)
         else: 
             self.cb_opts = None
 
@@ -1531,7 +1532,7 @@ class Plotims(QMainWindow):
             # prepare ims data
             imsdata = self.ims_data.data.copy()
             # perform data operations
-            imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
+            imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
 
             # continue plotting
             eoi_red = self.rgb_red.currentIndex()
@@ -1567,12 +1568,12 @@ class Plotims(QMainWindow):
                 print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
             else:
                 # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
-                rgb_im = IMS.prepare_rgb_data(imsdata.copy(), eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
+                rgb_im = Xims.prepare_rgb_data(imsdata.copy(), eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
                 # matplotlib plotting, to save image
                 fig = plt.figure(figsize=(10,10))
                 gs = gridspec.GridSpec(2,1, height_ratios=[0.2,1])
                 rgb0 = plt.subplot(gs[0], anchor='SW')
-                rgb_triangle = IMS.make_rgb_triangle()
+                rgb_triangle = Xims.make_rgb_triangle()
                 rgb0.imshow(rgb_triangle.astype(np.uint8))
                 rgb0.axis('off')
                 # add labels on rgb triangle
@@ -1599,9 +1600,9 @@ class Plotims(QMainWindow):
                 plt.tight_layout()
                 # add scale_bar if requested
                 if(self.plot_opts_sb.isChecked() and self.scale_xscale.isChecked()):
-                    IMS.add_scalebar(rgb1, self.sb_opts.x_pix_size, self.sb_opts.x_scl_size, self.sb_opts.x_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='h')
+                    Xims.add_scalebar(rgb1, self.sb_opts.x_pix_size, self.sb_opts.x_scl_size, self.sb_opts.x_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='h')
                 if(self.plot_opts_sb.isChecked() and self.scale_yscale.isChecked()):
-                    IMS.add_scalebar(rgb1, self.sb_opts.y_pix_size, self.sb_opts.y_scl_size, self.sb_opts.y_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='v')
+                    Xims.add_scalebar(rgb1, self.sb_opts.y_pix_size, self.sb_opts.y_scl_size, self.sb_opts.y_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='v')
                 filename = "_rgb_"+red_lbl+green_lbl+blue_lbl+out_ext
                 filename = filename_base+filename.replace(" ","") #remove all white spaces
                 fig.savefig(filename, dpi=420)
@@ -1617,15 +1618,15 @@ class Plotims(QMainWindow):
             else:
                 print(self.filenames[0][i])
                 if self.filenames[0][i].split('.')[-1] == 'h5':
-                        ims = IMS.read_h5(self.filenames[0][i], self.h5dir)
+                        ims = Xims.read_h5(self.filenames[0][i], self.h5dir)
                 elif self.filenames[0][i].split('.')[-1] == 'ims':
-                    ims = IMS.read_ims(self.filenames[0][i])
+                    ims = Xims.read_ims(self.filenames[0][i])
                 imsdata = ims.data
             filename_base = self.filenames[0][i].split(".")
             filename_base = filename_base[0]
 
             # perform data manipulations (resize, sqrt, log, rotation, binning, ...)
-            imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
+            imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
 
             # save new ims files if requested, and adjust filename addendum
             if self.data_opts_bin.isChecked():
@@ -1633,14 +1634,14 @@ class Plotims(QMainWindow):
             if self.data_opts_resize.isChecked():
                 addendum = addendum + 'resizex'+str(self.resize_opts.xstart)+'-'+str(self.resize_opts.xend)+'y'+str(self.resize_opts.ystart)+'-'+str(self.resize_opts.yend)
             if (self.tab_bin_save.isChecked() or self.tab_resize_save.isChecked() ):
-                IMS.write_ims(imsdata, ims.names, filename_base+addendum+'.ims')
+                Xims.write_ims(imsdata, ims.names, filename_base+addendum+'.ims')
 
             # perform collated imaging
             if self.plot_opts_colim.isChecked():
                 filename = "_"+self.plt_opts.ct+"_overview"+addendum+out_ext
                 filename = filename_base+filename.replace(" ","") #remove all white spaces
                 ims.data = imsdata
-                IMS.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
+                Xims.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
 
             # perform individual image plotting
             if self.plot_opts_normplot.isChecked():
@@ -1657,14 +1658,14 @@ class Plotims(QMainWindow):
                         # perform plotting
                         filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+addendum+out_ext
                         filename = filename_base+filename.replace(" ","") #remove all white spaces
-                        IMS.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
+                        Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
 
         # colorbar cutoff image
         if self.plot_opts_cbcut.isChecked():
             ims = self.ims_data
             imsdata = self.ims_data.data.copy()
             # perform data manipulations (resize, sqrt, log, rotation, binning, ...)
-            imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
+            imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
             # plot cutoff image with selected limits
             eoi = self.cbcut_eoi.currentIndex()
             clim = np.zeros(2)
@@ -1678,14 +1679,14 @@ class Plotims(QMainWindow):
                 clim[1] = float(self.cbcut_max.text())
             filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+"_cbcut"+out_ext
             filename = filename_base+filename.replace(" ","") #remove all white spaces
-            IMS.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
+            Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
             
         # ratio image
         if self.data_opts_ratio.isChecked():
             ims = self.ims_data
             imsdata = self.ims_data.data.copy()
             # perform data manipulations (resize, sqrt, log, rotation, binning, ...)
-            imsdata = IMS.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
+            imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
             eoi_nom = self.ratio_nom.currentIndex()
             eoi_den = self.ratio_den.currentIndex()
             ratio = np.zeros((imsdata.shape[0], imsdata.shape[1]))
@@ -1703,7 +1704,7 @@ class Plotims(QMainWindow):
                 clim[1] = float(self.ratio_max.text())
             filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi_nom]+'_'+ims.names[eoi_den]+"_ratio"+out_ext
             filename = filename_base+filename.replace(" ","") #remove all white spaces
-            IMS.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
+            Xims.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
