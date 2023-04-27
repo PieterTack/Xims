@@ -526,6 +526,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
     # set option for discrete colorbar, only if 10 or less values are plotted
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()+1).astype(int))
+        clim = [imsdata.min()-0.5, imsdata.max()+0.5]
     if plt_opts:
         aspect = plt_opts.aspect
         interpol = plt_opts.interpol
