@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 import sys
 import os
+import itertools
 
 import matplotlib
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
@@ -16,32 +17,48 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
-from PyQt5.QtWidgets import QApplication, QWidget, QDialog
+from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QGridLayout
-from PyQt5.QtWidgets import QCheckBox, QPushButton, QLabel, QScrollArea, \
-        QLineEdit, QTabWidget, QFileDialog, QComboBox, QTreeWidget, QTreeWidgetItem, \
-            QRadioButton
+from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, \
+        QLineEdit, QTabWidget, QFileDialog, QRadioButton, \
+            QListWidget, QAbstractItemView, QSplitter
 
 
-def gplot_rh5(h5file, channel='channel00'):
-    f = h5py.File(h5file, 'r')
-    spe = np.array(f['raw/'+channel+'/sumspec'])
-    try:
-        names = [n.decode('utf8') for n in f['fit/'+channel+'/names']]
-        cfg = f['fit/'+channel+'/cfg'][()]
-    except KeyError:
-        names = None
-        cfg = None
+def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
+    with h5py.File(h5file, 'r') as f:
+        spe = np.array(f[channel])
+        
+        # see if names is in same channel directory, or in folder above
+        if '/'.join(channel.split('/')[0:-1])+'/names' in f.keys():
+            names = [n.decode('utf8') for n in f['/'.join(channel.split('/')[0:-1])+'/names']]
+        elif '/'.join(channel.split('/')[0:-2])+'/names' in f.keys():
+            names = [n.decode('utf8') for n in f['/'.join(channel.split('/')[0:-2])+'/names']]
+        else:
+            names = None
 
-    if cfg is not None: # we're looking for the energy calibration values...
-        from PyMca5.PyMca import ConfigDict
-        config = ConfigDict.ConfigDict()
-        config.read(cfg)
-        cfg = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+        cfgdir = 'fit/'+channel.split('/')[1]+'/cfg'
+        if cfgdir in f.keys():
+            cfg = f[cfgdir][()]
+        else:
+            cfg = None
 
-    f.close()
+    if cfg is not None:
+        if os.path.exists(cfg): # we're looking for the energy calibration values...
+            from PyMca5.PyMca import ConfigDict
+            config = ConfigDict.ConfigDict()
+            config.read(cfg)
+            zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+        elif os.path.exists(os.path.dirname(h5file)+'/'+os.path.basename(cfg)): #also check if the cfg file happens to be in same folder as h5file...
+            from PyMca5.PyMca import ConfigDict
+            config = ConfigDict.ConfigDict()
+            config.read(os.path.dirname(h5file)+'/'+os.path.basename(cfg))
+            zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+        else:
+            zgr = None
+    else:
+        zgr = None
 
-    return spe, names, cfg
+    return spe, names, zgr
 
 def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None, peak_id=True):
     # read the h5 file, formatted according to the XMI format
@@ -59,7 +76,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
         if channel == 'all':
             chnl = ['channel00', 'channel02']
             for i in range(0, 2):
-                spe, names, cfg = gplot_rh5(h5, chnl[i])
+                spe, names, cfg = Xplot_rh5(h5, chnl[i])
                 if normtochan is not None:
                     spe = spe[:]/spe[normtochan]
                 if cfg is None:
@@ -77,7 +94,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                     plt_lbl = label[i]
                 plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=plt_lbl, linestyle='-')
         else:        
-            spe, names, cfg = gplot_rh5(h5, channel)
+            spe, names, cfg = Xplot_rh5(h5, channel)
             if normtochan is not None:
                 spe = spe[:]/spe[normtochan]
             if cfg is None:
@@ -230,25 +247,31 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
 
-class Poll_h5dir():
+class Poll_h5dir(QDialog):
     def __init__(self, h5file, parent=None):
-        self.paths=[]
-        self.h5file = h5file
+        super(Poll_h5dir, self).__init__(parent)
         # extract all Dataset paths from the H5 file
-        f = h5py.File(self.h5file, 'r')
+        f = h5py.File(h5file, 'r')
         self.paths = self.descend(f, paths=None)
-
-        # in this case, we only want spectra
-        self.paths = [path for path in self.paths if 'sumspec' in path or 'maxspec' in path]    
-        self.specs = [np.array(f[path]) for path in self.paths]
-        
         f.close()
-
-    def spe(self, path):
-        return self.specs[self.paths.index(path)]
-
-    def dirs(self):
-        return self.paths
+        
+        # spawn screen allowing the user to select a given path, or multiple
+        self.paths = [path for path in self.paths]        
+        # build widgets
+        layout = QVBoxLayout()
+        self.task = QLabel('Select your H5 file directory of choice:')
+        layout.addWidget(self.task)
+        self.path_select = QListWidget()
+        self.path_select.addItems(self.paths)
+        self.path_select.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        layout.addWidget(self.path_select)
+        self.read_but = QPushButton("Read")
+        layout.addWidget(self.read_but)
+        # show window
+        self.setLayout(layout)
+        self.show()
+        # handle events
+        self.read_but.clicked.connect(self.read_path)
         
     def descend(self, obj, paths=None):
         if paths is None:
@@ -261,6 +284,12 @@ class Poll_h5dir():
             paths.append(obj.name)
         return paths
 
+    def read_path(self):
+        self.h5dir = [item.text() for item in self.path_select.selectedItems()]
+        # close spawned window and return selected elements...
+        self.hide()
+        super().accept()
+
 
 class MatplotlibWidget(QWidget):
     
@@ -268,7 +297,7 @@ class MatplotlibWidget(QWidget):
         
         QWidget.__init__(self, parent)
         
-        self.fig = Figure(figsize=(7,3.5), dpi=100, tight_layout=True)
+        self.fig = Figure(figsize=(10,5), dpi=100, tight_layout=True)
         self.canvas = FigureCanvas(self.fig)
         
         vertical_layout = QVBoxLayout()
@@ -288,6 +317,7 @@ class Xplot_GUI(QWidget):
 
         self.new_window = None
         self.filename = ""
+        self.datadic = []
 
 
         # create widgets
@@ -295,9 +325,9 @@ class Xplot_GUI(QWidget):
         # create main layout for widgets
         layout_main = QVBoxLayout()
         layout_browseh5 = QHBoxLayout()
-        layout_subdir = QHBoxLayout()
-        layout_body = QHBoxLayout()
-        layout_canvas = QVBoxLayout()
+        splitter = QSplitter()
+        splitter.setOrientation(Qt.Horizontal)
+        
 
         # browse buttons
         self.file_lbl = QLabel("File:")
@@ -314,20 +344,8 @@ class Xplot_GUI(QWidget):
         self.mpl = MatplotlibWidget()
         self.mpl.axes.set_xlabel('Energy [keV]')
         self.mpl.axes.set_ylabel('Intensity [counts]')
-        layout_canvas.addWidget(self.mpl)
-    
-        # dropdown box to select file subdir
-        self.subdir_lbl = QLabel('     Sub directory:')
-        self.subdir = QComboBox()
-        self.subdir.addItems([''])
-        self.subdir.setMinimumWidth(200)
-        layout_subdir.addWidget(self.subdir_lbl)
-        layout_subdir.addWidget(self.subdir)
-        layout_subdir.addStretch()
-        layout_main.addLayout(layout_subdir)
+        splitter.addWidget(self.mpl)
         
-        layout_body.addLayout(layout_canvas)
-
         # plotting options
         # 3 tabs:
         #   Labels
@@ -407,11 +425,25 @@ class Xplot_GUI(QWidget):
         axis_minmax_layout.addWidget(self.xmax,1,2)
         axis_minmax_layout.addWidget(self.ymax,2,2)
         tab_labels_layout.addLayout(axis_minmax_layout)
+        tab_labels_layout.addSpacing(20)
         axis_Eplot_layout = QHBoxLayout()
-        axis_Eplot_layout.addStrut(50)
         self.Eplot = QCheckBox("Display X-axis as Energy")
         axis_Eplot_layout.addWidget(self.Eplot)
         tab_labels_layout.addLayout(axis_Eplot_layout)
+        axis_ZeroGain_layout = QHBoxLayout()
+        axis_ZeroGain_layout.addSpacing(50)
+        axis_ZeroGain_layout.addWidget(QLabel("Zero:"))
+        self.Eplot_zero = QLineEdit("0")
+        self.Eplot_zero.setValidator(QDoubleValidator(0, 1E6, 3))
+        self.Eplot_zero.setMaximumWidth(50)
+        self.Eplot_gain = QLineEdit("1")
+        self.Eplot_gain.setValidator(QDoubleValidator(0, 1E6, 3))
+        self.Eplot_gain.setMaximumWidth(50)
+        axis_ZeroGain_layout.addWidget(self.Eplot_zero)
+        axis_ZeroGain_layout.addWidget(QLabel("Gain:"))
+        axis_ZeroGain_layout.addWidget(self.Eplot_gain)
+        axis_ZeroGain_layout.addStretch()
+        tab_labels_layout.addLayout(axis_ZeroGain_layout)
         tab_labels_layout.addStretch()
         self.tab_labels.setLayout(tab_labels_layout)
         self.menu_tabs.addTab(self.tab_labels, "Labels")
@@ -423,13 +455,13 @@ class Xplot_GUI(QWidget):
         custom_fontsizes_layout.addWidget(QLabel('Main Title:'), 0,0)
         custom_fontsizes_layout.addWidget(QLabel('Axes Title:'), 1,0)
         custom_fontsizes_layout.addWidget(QLabel('Axes Labels:'), 2,0)
-        self.fontsize_maintitle = QLineEdit("")
+        self.fontsize_maintitle = QLineEdit("18")
         self.fontsize_maintitle.setValidator(QDoubleValidator(1, 100, 0))
         self.fontsize_maintitle.setMaximumWidth(30)
-        self.fontsize_axtitle = QLineEdit("")
+        self.fontsize_axtitle = QLineEdit("16")
         self.fontsize_axtitle.setValidator(QDoubleValidator(1, 100, 0))
         self.fontsize_axtitle.setMaximumWidth(30)
-        self.fontsize_axlbl = QLineEdit("")
+        self.fontsize_axlbl = QLineEdit("14")
         self.fontsize_axlbl.setValidator(QDoubleValidator(1, 100, 0))
         self.fontsize_axlbl.setMaximumWidth(30)
         custom_fontsizes_layout.addWidget(self.fontsize_maintitle, 0,1)
@@ -438,14 +470,14 @@ class Xplot_GUI(QWidget):
         custom_fontsizes_layout.addWidget(QLabel('Legend:'), 0,2)
         custom_fontsizes_layout.addWidget(QLabel('Annotations:'), 1,2)
         custom_fontsizes_layout.addWidget(QLabel('Curve Thick:'), 2,2)
-        self.fontsize_legend = QLineEdit("")
+        self.fontsize_legend = QLineEdit("12")
         self.fontsize_legend.setValidator(QDoubleValidator(1, 1E2, 0))
         self.fontsize_legend.setMaximumWidth(30)
-        self.fontsize_annot = QLineEdit("")
+        self.fontsize_annot = QLineEdit("12")
         self.fontsize_annot.setValidator(QDoubleValidator(1, 1E2, 0))
         self.fontsize_annot.setMaximumWidth(30)
-        self.curve_thick = QLineEdit("")
-        self.curve_thick.setValidator(QDoubleValidator(1, 1E2, 0))
+        self.curve_thick = QLineEdit("1.5")
+        self.curve_thick.setValidator(QDoubleValidator(1, 1E2, 1))
         self.curve_thick.setMaximumWidth(30)
         custom_fontsizes_layout.addWidget(self.fontsize_legend, 0,3)
         custom_fontsizes_layout.addWidget(self.fontsize_annot, 1,3)
@@ -465,15 +497,18 @@ class Xplot_GUI(QWidget):
         custom_curve_layout.addWidget(self.vert_offset)
         tab_custom_layout.addLayout(custom_curve_layout)
         tab_custom_layout.addSpacing(10)
-        tab_custom_layout.addWidget(QLabel("Plot Positions:"))
-        custom_positions_layout = QGridLayout()
-        custom_positions_layout.addWidget(QLabel('Plot area:'), 0,0)
-        custom_positions_layout.addWidget(QLabel('Legend position:'), 1,0)
-        self.plotarea = QLineEdit("tight") #tight or other layout or xmin,ymin,xmax,ymax
+        custom_positions_layout = QHBoxLayout()
+        custom_positions_layout.addWidget(QLabel('Legend position:'))
         self.legendpos = QLineEdit("best") #best or other loc or xpos,ypos
-        custom_positions_layout.addWidget(self.plotarea, 0,1)
-        custom_positions_layout.addWidget(self.legendpos, 1,1)
+        custom_positions_layout.addWidget(self.legendpos)
+        custom_positions_layout.addStretch()
         tab_custom_layout.addLayout(custom_positions_layout)
+        legend_bbox_layout = QHBoxLayout()
+        legend_bbox_layout.addSpacing(50)
+        self.legend_bbox = QCheckBox("Legend Bbox")
+        self.legend_bbox.setChecked(True)
+        legend_bbox_layout.addWidget(self.legend_bbox)
+        tab_custom_layout.addLayout(legend_bbox_layout)
         tab_custom_layout.addStretch()
         self.tab_custom.setLayout(tab_custom_layout)
         self.menu_tabs.addTab(self.tab_custom, "Layout")
@@ -527,49 +562,226 @@ class Xplot_GUI(QWidget):
         tab_options_layout.addStretch()
         self.tab_options.setLayout(tab_options_layout)
         self.menu_tabs.addTab(self.tab_options, "Options")
-        layout_body.addWidget(self.menu_tabs)        
+        splitter.addWidget(self.menu_tabs)        
         self.menu_tabs.setCurrentWidget(self.tab_labels)
 
     
         # show window
-        layout_main.addLayout(layout_body)
+        layout_main.addWidget(splitter)
         self.setLayout(layout_main)
         self.setWindowTitle('Xplot GUI')
         self.show()
 
         # event handling
         self.browse.clicked.connect(self.browse_app) # browse button
-        self.filedir.returnPressed.connect(self.browse_app)
-        self.subdir.currentIndexChanged.connect(self.subdir_change) #different data directory selected
+        self.filedir.returnPressed.connect(self.read_files)
+        self.graphtitle.returnPressed.connect(self.update_plot)
+        self.xtitle.returnPressed.connect(self.update_plot)
+        self.ytitle.returnPressed.connect(self.update_plot)
+        self.xmin.returnPressed.connect(self.update_plot)
+        self.xmax.returnPressed.connect(self.update_plot)
+        self.ymin.returnPressed.connect(self.update_plot)
+        self.ymax.returnPressed.connect(self.update_plot)
+        self.xmult.returnPressed.connect(self.update_plot)
+        self.ymult.returnPressed.connect(self.update_plot)
+        self.xlinlog.stateChanged.connect(self.update_plot)
+        self.ylinlog.stateChanged.connect(self.update_plot)
+        self.axboxtype_single.toggled.connect(self.update_plot)
+        self.axboxtype_box.toggled.connect(self.update_plot)
+        self.xkcd.stateChanged.connect(self.update_plot)
+        self.Eplot.stateChanged.connect(self.ctegain_update)
+        self.Eplot_gain.returnPressed.connect(self.ctegain_update)
+        self.Eplot_zero.returnPressed.connect(self.ctegain_update)
+        self.fontsize_maintitle.returnPressed.connect(self.update_plot)  
+        self.fontsize_maintitle.returnPressed.connect(self.update_plot)  
+        self.fontsize_axtitle.returnPressed.connect(self.update_plot)  
+        self.fontsize_axlbl.returnPressed.connect(self.update_plot)  
+        self.fontsize_legend.returnPressed.connect(self.update_plot)  
+        self.curve_thick.returnPressed.connect(self.update_plot)  
+        self.legendpos.returnPressed.connect(self.update_plot)  
+        self.vert_offset.returnPressed.connect(self.update_plot)
+        self.legend_bbox.stateChanged.connect(self.update_plot)
+
+    def update_plot(self):
+        if self.datadic != []:
+            if self.xkcd.isChecked() is True:
+                plt.xkcd()
+            else:
+                plt.rcdefaults()
+            self.mpl.axes.cla()
+            self.mpl.fig.clear()
+            self.mpl.axes = self.mpl.fig.add_subplot(111)
+            self.mpl.axes.set_xlim((float(self.xmin.text()),float(self.xmax.text())))
+            self.mpl.axes.set_ylim((float(self.ymin.text()),float(self.ymax.text())))
+            if self.xlinlog.isChecked() is True:
+                self.mpl.axes.set_xscale('log')
+            if self.ylinlog.isChecked() is True:
+                self.mpl.axes.set_yscale('log')
+            for index, item in enumerate(self.datadic):
+                # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
+                xdata = item["xvals"]*float(self.xmult.text())
+                ydata = item["data"]*float(self.ymult.text())
+                if float(self.vert_offset.text()) != 0.0:
+                    newTransform = self.mpl.axes.transScale + self.mpl.axes.transLimits
+                    for i in range(len(ydata)):
+                        axcoords = newTransform.transform([xdata[i], ydata[i]])
+                        axcoords[1] += float(self.vert_offset.text())*index # add vertical offset in relative axes height
+                        ydata[i] = newTransform.inverted().transform(axcoords)[1]
+                self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()))
+            #TODO: we should extract the curve colour here and put it in the datadic for future reference
+            if self.axboxtype_single.isChecked() is True:
+                self.mpl.axes.spines[['right', 'top']].set_visible(False)
+            if self.graphtitle.text() != "":
+                self.mpl.axes.set_title(self.graphtitle.text(), fontsize=np.around(float(self.fontsize_maintitle.text())).astype(int))
+            self.mpl.axes.set_xlabel(self.xtitle.text(), fontsize=np.around(float(self.fontsize_axtitle.text())).astype(int))
+            self.mpl.axes.xaxis.set_tick_params(labelsize=np.around(float(self.fontsize_axlbl.text())).astype(int))
+            self.mpl.axes.set_ylabel(self.ytitle.text(), fontsize=np.around(float(self.fontsize_axtitle.text())).astype(int))
+            self.mpl.axes.yaxis.set_tick_params(labelsize=np.around(float(self.fontsize_axlbl.text())).astype(int))
+
+            handles, labels = self.mpl.axes.get_legend_handles_labels()
+            if ',' in self.legendpos.text():
+                legend_pos = tuple(map(float,self.legendpos.text().split(',')))
+            elif self.legendpos.text() in ['best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center']:
+                legend_pos = self.legendpos.text()
+            else:
+                legend_pos = None
+                print("Warning: did you mean one of the following: best, center right, lower center?")
+            if legend_pos is not None:
+                self.mpl.axes.legend(handles, labels, loc=legend_pos, fontsize=np.around(float(self.fontsize_legend.text())).astype(int), frameon=self.legend_bbox.isChecked())
+
+
+
+            self.mpl.canvas.draw()
+            # to make sure we don't screw up matplotlib for other processes, undo the xkcd style
+            plt.rcdefaults()
         
     def browse_app(self):
-        self.filename = QFileDialog.getOpenFileName(self, caption="Open spectrum file", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv)")[0]
-        if len(self.filename) != 0:
-            self.filedir.setText("'"+str(self.filename)+"'")
-            # read in first ims file, to obtain data on elements and dimensions
-            if(self.filename != "''"):
-                extension = os.path.splitext(self.filename)[-1].lower()
+        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv)")[0]
+        if len(self.filenames) != 0:
+            # read in first file, to obtain data on elements and dimensions
+            if(self.filenames != []):
+                extension = os.path.splitext(self.filenames[0])[-1].lower()
                 if extension == '.spe':
                     pass #TODO
                 elif extension == '.csv':
                     pass #TODO
                 elif extension == '.h5':
-                    self.file = Poll_h5dir(self.filename)
-                    self.subdirs = []
-                    self.subdirs = self.file.dirs()
-                    self.rawspe = self.file.spe([dirs for dirs in self.subdirs if 'raw' in dirs and 'sumspec' in dirs][0])
-                    # change dropdown widget to display appropriate subdirs
-                    self.subdir.clear()
-                    self.subdir.addItems(self.subdirs)
-                    self.subdir.setCurrentIndex(self.subdirs.index([dirs for dirs in self.subdirs if 'raw' in dirs and 'sumspec' in dirs][0]))
-            # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
-            self.update_plot(update=False)
-            
-    def subdir_change(self, index):
-        if self.subdirs != []:
-            self.rawspe = self.file.spe(self.subdirs[index])
-            self.update_plot(update=False)
+                    self.new_window = Poll_h5dir(self.filenames[0])
+                    if self.new_window.exec_() == QDialog.Accepted:
+                        self.subdirs = self.new_window.h5dir
+                    self.filedir.setText('"'+'","'.join([pair for pair in map(':'.join, list(itertools.product(self.filenames, self.subdirs)))])+'"')
+            self.read_files()
 
+    def read_files(self):
+            # read the data from all files/directories
+            files = self.filedir.text()[1:-1].split('","')
+            self.datadic = []
+            for file in files:
+                h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
+                h5dir = file.split(':')[-1]
+                # check datatype based on h5dir
+                if 'spe' in h5dir:
+                    datatype = 'spe'
+                elif 'quant' in h5dir:
+                    datatype = 'scatter'
+                elif 'elyield' in h5dir:
+                    datatype = 'scatter'
+                elif 'detlim' in h5dir:
+                    datatype = 'scatter'
+                else:
+                    datatype = 'spe'
+                data, lines, config = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
+
+                if datatype == 'spe' and config is not None:
+                    xvals = np.arange(len(data))*config[1]+config[0]
+                else:
+                    xvals = np.arange(len(data))
+                self.datadic.append({'filename' : h5file,
+                                     'h5dir' : h5dir,
+                                     'label' : os.path.basename(h5file)+':'+h5dir,
+                                     'data' : data,
+                                     'xvals' : xvals,
+                                     'datatype' : datatype,
+                                     'lines' : lines,
+                                     'cfg' : config
+                                     })
+
+            # set GUI fields to the appropriate values
+            self.xmin.setText("{:0.0f}".format(np.around(np.min([item["xvals"] for item in self.datadic]))))
+            self.xmax.setText("{:0.0f}".format(np.around(np.max([item["xvals"] for item in self.datadic]))))
+            self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
+            self.ymax.setText("{:.3}".format(2.*np.max([item["data"] for item in self.datadic])))
+            if self.datadic[0]['datatype'] == 'spe':
+                self.ytitle.setText("Intensity [Counts]")
+                if self.datadic[0]['cfg'] is None:
+                    self.xtitle.setText("Detector Channel Number")
+                else:
+                    self.Eplot.setChecked(True)
+                    self.Eplot_zero.setText("{:.3}".format(self.datadic[0]["cfg"][0]))
+                    self.Eplot_gain.setText("{:.3}".format(self.datadic[0]["cfg"][1]))
+                    self.xtitle.setText("Energy [keV]")
+            elif 'quant' in self.datadic[0]['h5dir']:
+                self.xtitle.setText("Atomic Number [Z]")
+                self.ytitle.setText("Concentration [ppm]")
+            elif 'elyield' in self.datadic[0]['h5dir']:
+                self.xtitle.setText("Atomic Number [Z]")
+                self.ytitle.setText("Elemental yield [(ct/s)/(ug/cm²)]")
+            elif 'detlim' in self.datadic[0]['h5dir']:
+                self.xtitle.setText("Atomic Number [Z]")
+                self.ytitle.setText("Detection Limit [ppm]")
+            
+
+            # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
+            self.update_plot()
+            
+    def ctegain_invert(self):
+        if self.datadic != []:
+            if self.Eplot.isChecked() is True:
+                self.xtitle.setText("Energy [keV]")
+                if self.datadic[0]["cfg"] is not None:
+                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                else:
+                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                for item in self.datadic:
+                    if item["cfg"] is not None:
+                        item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
+                    else:
+                        item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
+                self.update_plot()
+            else:
+                self.ctegain_update()
+        
+    def ctegain_update(self):
+        if self.datadic != []:
+            if self.Eplot.isChecked() is True:
+                self.xtitle.setText("Energy [keV]")
+                if self.datadic[0]["cfg"] is not None:
+                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                else:
+                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                for item in self.datadic:
+                    if item["cfg"] is not None:
+                        item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
+                    else:
+                        item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
+            else:
+                self.xtitle.setText("Detector Channel Number")
+                if self.datadic[0]["cfg"] is not None:
+                    self.xmin.setText("{:0.0f}".format(np.around((float(self.xmin.text())-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                    self.xmax.setText("{:0.0f}".format(np.around((float(self.xmax.text())-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                else:
+                    self.xmin.setText("{:0.0f}".format(np.around((float(self.xmin.text())-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                    self.xmax.setText("{:0.0f}".format(np.around((float(self.xmax.text())-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                self.Eplot_zero.setText("0")
+                self.Eplot_gain.setText("1")
+                for item in self.datadic:
+                    item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
+                
+            self.update_plot()
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
