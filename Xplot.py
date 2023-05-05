@@ -20,8 +20,8 @@ from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QGridLayout
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, \
-        QLineEdit, QTabWidget, QFileDialog, QRadioButton, \
-            QListWidget, QAbstractItemView, QSplitter
+        QLineEdit, QTabWidget, QFileDialog, QRadioButton, QTableWidgetItem, \
+            QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView
 
 
 def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
@@ -153,9 +153,6 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                 # plot the text label X% above this value
                 plt.text(energy, yval, n, horizontalalignment='center', fontsize=16)
     
-    #TODO: Increase fontsizes, add minor tickmarks on x-axis        
-    #plt.show()
-
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
 
@@ -289,6 +286,60 @@ class Poll_h5dir(QDialog):
         # close spawned window and return selected elements...
         self.hide()
         super().accept()
+
+
+class CurveSequence(QDialog):
+    def __init__(self, mainobj, parent=None):
+        super(CurveSequence, self).__init__(parent)
+
+        layout_main = QVBoxLayout()
+        
+        # we need 5 columns: Sequence, filename (ineditable), datadir (ineditable), label, colour
+        table_widget = QTableWidget(len(mainobj.datadic), 5)
+        header = table_widget.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        table_widget.verticalHeader().setVisible(False)
+        layout_main.addWidget(table_widget)
+        # Set some Title cells
+        table_widget.setHorizontalHeaderLabels(["Sequence", "File", "Directory", "Label", "Colour"])
+        # Set all the subsequent datadic cells
+        for index,data in enumerate(mainobj.datadic):
+            table_widget.setItem(index, 0, QTableWidgetItem("{:0.0f}".format(index))) #sequence in the dictionary
+            item = QTableWidgetItem(data["filename"])
+            item.setFlags(item.flags() ^ Qt.ItemIsEditable) # filename
+            table_widget.setItem(index, 1, item)
+            item = QTableWidgetItem(data["h5dir"])
+            item.setFlags(item.flags() ^ Qt.ItemIsEditable) # datadir in filename
+            table_widget.setItem(index, 2, item)
+            table_widget.setItem(index, 3,QTableWidgetItem(data["label"]))
+            if data["colour"] is None:
+                itemtext = "None"
+            else:
+                itemtext = data["colour"]
+            table_widget.setItem(index, 4,QTableWidgetItem(itemtext))
+        
+        # Apply changes button
+        self.set = QPushButton("Apply")
+        self.set.setAutoDefault(False) # set False as otherwise this button is called on each return
+        layout_main.addWidget(self.set)
+
+        # show window
+        self.setLayout(layout_main)
+        self.setWindowTitle('Curve Sequence and Labeling')
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.resize(700,350)
+        self.show()
+
+        # event handling
+        self.set.clicked.connect(self.go) # calculate button
+        
+    def go(self):
+        # 
+        # close spawned window and return selected elements...
+        self.hide()
+        super().accept()
+        
 
 
 class MatplotlibWidget(QWidget):
@@ -601,6 +652,7 @@ class Xplot_GUI(QWidget):
         self.legendpos.returnPressed.connect(self.update_plot)  
         self.vert_offset.returnPressed.connect(self.update_plot)
         self.legend_bbox.stateChanged.connect(self.update_plot)
+        self.curve_sequence.clicked.connect(self.change_curve_seq)
 
     def update_plot(self):
         if self.datadic != []:
@@ -627,8 +679,7 @@ class Xplot_GUI(QWidget):
                         axcoords = newTransform.transform([xdata[i], ydata[i]])
                         axcoords[1] += float(self.vert_offset.text())*index # add vertical offset in relative axes height
                         ydata[i] = newTransform.inverted().transform(axcoords)[1]
-                self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()))
-            #TODO: we should extract the curve colour here and put it in the datadic for future reference
+                self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), color=item["colour"])
             if self.axboxtype_single.isChecked() is True:
                 self.mpl.axes.spines[['right', 'top']].set_visible(False)
             if self.graphtitle.text() != "":
@@ -699,6 +750,7 @@ class Xplot_GUI(QWidget):
                 self.datadic.append({'filename' : h5file,
                                      'h5dir' : h5dir,
                                      'label' : os.path.basename(h5file)+':'+h5dir,
+                                     'colour' : None,
                                      'data' : data,
                                      'xvals' : xvals,
                                      'datatype' : datatype,
@@ -782,6 +834,17 @@ class Xplot_GUI(QWidget):
                     item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
                 
             self.update_plot()
+
+    def change_curve_seq(self):
+        if self.datadic != []:
+            self.new_window = CurveSequence(self)
+            self.new_window.setFocus()
+            if self.new_window.exec_() == QDialog.Accepted:
+                pass #TODO: copy the new info to the old dict self.datadic
+            self.new_window.close()
+            self.new_window = None
+
+
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
