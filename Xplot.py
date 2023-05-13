@@ -19,7 +19,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QGridLayout
-from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, \
+from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, QButtonGroup, \
         QLineEdit, QTabWidget, QFileDialog, QRadioButton, QTableWidgetItem, \
             QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView
 
@@ -28,19 +28,33 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
     with h5py.File(h5file, 'r') as f:
         spe = np.array(f[channel])
         
+        # find detector channel
+        detchnl = [detchnl for detchnl in channel.split('/') if 'channel' in detchnl]
+        
         # see if names is in same channel directory, or in folder above
         if '/'.join(channel.split('/')[0:-1])+'/names' in f.keys():
             names = [n.decode('utf8') for n in f['/'.join(channel.split('/')[0:-1])+'/names']]
         elif '/'.join(channel.split('/')[0:-2])+'/names' in f.keys():
             names = [n.decode('utf8') for n in f['/'.join(channel.split('/')[0:-2])+'/names']]
+        elif 'fit' in f.keys():
+            if 'fit/'+detchnl[0]+'/names' in f.keys():
+                names = [n.decode('utf8') for n in f['fit/'+detchnl[0]+'/names']]
+            else:
+                names = None
         else:
             names = None
 
-        cfgdir = 'fit/'+channel.split('/')[1]+'/cfg'
+        cfgdir = 'fit/'+detchnl[0]+'/cfg'
         if cfgdir in f.keys():
-            cfg = f[cfgdir][()]
+            cfg = f[cfgdir][()].decode('utf8')
         else:
             cfg = None
+
+        # look for error values, else return None
+        if channel+'_stddev' in f.keys():
+            error = f[channel+'_stddev']
+        else:
+            error = None
 
     if cfg is not None:
         if os.path.exists(cfg): # we're looking for the energy calibration values...
@@ -58,7 +72,7 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
     else:
         zgr = None
 
-    return spe, names, zgr
+    return spe, names, zgr, error
 
 def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=None, yrange=None, peak_id=True):
     # read the h5 file, formatted according to the XMI format
@@ -76,7 +90,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
         if channel == 'all':
             chnl = ['channel00', 'channel02']
             for i in range(0, 2):
-                spe, names, cfg = Xplot_rh5(h5, chnl[i])
+                spe, names, cfg, _ = Xplot_rh5(h5, chnl[i])
                 if normtochan is not None:
                     spe = spe[:]/spe[normtochan]
                 if cfg is None:
@@ -94,7 +108,7 @@ def h5_plot(h5file, channel='channel00', label=None, xrange=None, normtochan=Non
                     plt_lbl = label[i]
                 plt.plot(np.linspace(0, spe.shape[0]-1, num=spe.shape[0])*gain+zero, spe, label=plt_lbl, linestyle='-')
         else:        
-            spe, names, cfg = Xplot_rh5(h5, channel)
+            spe, names, cfg, _ = Xplot_rh5(h5, channel)
             if normtochan is not None:
                 spe = spe[:]/spe[normtochan]
             if cfg is None:
@@ -214,7 +228,7 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
     ax.tick_params(axis='x', which='minor', bottom=True)
     
     # add peak annotation if names and cfg provided
-    if cfg is not None:
+    if cfg is not None and plotelnames is True:
         # x axis of plot is in Energy (keV)
         # determine peak energy values (Rayl energy = cfg[2])
         #TODO account for occurences of both Ka and Kb...
@@ -232,7 +246,7 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
             else:
                 energy = None
             # if energy not None, plot label at this energy value
-            if energy is not None and plotelnames is True:
+            if energy is not None:
                 idx = max(np.where(handles[0].get_xdata() <= energy)[-1])
                 yval = 10**(np.log10(max([hand.get_ydata()[idx] for hand in handles]))*1.025)
                 # plot the text label X% above this value
@@ -293,30 +307,31 @@ class CurveSequence(QDialog):
         super(CurveSequence, self).__init__(parent)
 
         layout_main = QVBoxLayout()
+        self.mainobj = mainobj
         
         # we need 5 columns: Sequence, filename (ineditable), datadir (ineditable), label, colour
-        table_widget = QTableWidget(len(mainobj.datadic), 5)
-        header = table_widget.horizontalHeader()
+        self.table_widget = QTableWidget(len(self.mainobj.datadic), 5)
+        header = self.table_widget.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
-        table_widget.verticalHeader().setVisible(False)
-        layout_main.addWidget(table_widget)
+        self.table_widget.verticalHeader().setVisible(False)
+        layout_main.addWidget(self.table_widget)
         # Set some Title cells
-        table_widget.setHorizontalHeaderLabels(["Sequence", "File", "Directory", "Label", "Colour"])
+        self.table_widget.setHorizontalHeaderLabels(["Sequence", "File", "Directory", "Label", "Colour"])
         # Set all the subsequent datadic cells
-        for index,data in enumerate(mainobj.datadic):
-            table_widget.setItem(index, 0, QTableWidgetItem("{:0.0f}".format(index))) #sequence in the dictionary
+        for index,data in enumerate(self.mainobj.datadic):
+            self.table_widget.setItem(index, 0, QTableWidgetItem("{:0.0f}".format(index))) #sequence in the dictionary
             item = QTableWidgetItem(data["filename"])
             item.setFlags(item.flags() ^ Qt.ItemIsEditable) # filename
-            table_widget.setItem(index, 1, item)
+            self.table_widget.setItem(index, 1, item)
             item = QTableWidgetItem(data["h5dir"])
             item.setFlags(item.flags() ^ Qt.ItemIsEditable) # datadir in filename
-            table_widget.setItem(index, 2, item)
-            table_widget.setItem(index, 3,QTableWidgetItem(data["label"]))
+            self.table_widget.setItem(index, 2, item)
+            self.table_widget.setItem(index, 3,QTableWidgetItem(data["label"]))
             if data["colour"] is None:
                 itemtext = "None"
             else:
                 itemtext = data["colour"]
-            table_widget.setItem(index, 4,QTableWidgetItem(itemtext))
+            self.table_widget.setItem(index, 4,QTableWidgetItem(itemtext))
         
         # Apply changes button
         self.set = QPushButton("Apply")
@@ -335,11 +350,31 @@ class CurveSequence(QDialog):
         self.set.clicked.connect(self.go) # calculate button
         
     def go(self):
-        # 
-        # close spawned window and return selected elements...
-        self.hide()
-        super().accept()
-        
+        # read the table info
+        nrows, ncols = self.table_widget.rowCount(), self.table_widget.columnCount()
+        table = []
+        for i in range(nrows):
+            for j in range(ncols):
+                table.append(self.table_widget.item(i,j).text())
+        table = np.asarray(table).reshape(nrows, ncols)
+        # Check if the sequence makes sense, i.e. if each integer appears only once etc.
+        sequence = [int(i) for i in table[:,0]] #sequence is the first column
+        if np.sum(abs(np.sort(sequence) - np.arange(nrows))) == 0:
+            # sort datadic and table according to new sequence
+            self.mainobj.datadic = np.asarray(self.mainobj.datadic)[sequence]
+            for i in range(ncols):
+                table[:,i] = table[sequence,i]
+            for i in range(nrows):
+                self.mainobj.datadic[i]["label"] = table[i,3]
+                if table[i,4].lower() != 'none':
+                    self.mainobj.datadic[i]["colour"] = table[i,4]
+                else:
+                    self.mainobj.datadic[i]["colour"] = None
+            # close spawned window and return selected elements...
+            self.hide()
+            super().accept()
+        else:
+            print("WARNING: the curve sequence column must contain unique integer values from 0 (first curve to plot) to %s (last curve to plot)" % nrows-1)
 
 
 class MatplotlibWidget(QWidget):
@@ -360,6 +395,56 @@ class MatplotlibWidget(QWidget):
         
         self.setLayout(vertical_layout)
 
+def ReturnLabels(labels, quantifier):
+    # if quantifier is "main" only return the Ka, La and Ma energies,
+    #   if quantifier is "all" return Ka, Kb, La, Lb, Lg and Ma, Mb and Mg
+    from PyMca5.PyMcaPhysics.xrf import Elements
+
+    energies = []
+    labeltext = []
+    for label in labels:
+        ele = label.split(" ")[0]
+        line = label.split(" ")[1]
+        linedict = Elements._getUnfilteredElementDict(ele, None)
+        if 'K' in line:
+            # add Ka1 line in any case, can add others if requested
+            energies.append(linedict['KL3']['energy'])
+            labeltext.append(ele+r' K$\alpha$')
+            if line == 'Kb' or quantifier == 'all': #There is the chance that this occurs multiple time, so will have to take unique items at the end still
+                energies.append(linedict['KM3']['energy'])
+                labeltext.append(ele+r' K$\beta$')
+
+        if 'L' in line:
+            # add La1 line in any case, can add others if requested
+            energies.append(linedict['L3M5']['energy'])
+            labeltext.append(ele+r' L$\alpha$')
+            if quantifier == 'all':
+                #Lb1
+                energies.append(linedict['L2M4']['energy'])
+                labeltext.append(ele+r' L$\beta$')
+                #Lg1
+                energies.append(linedict['L2N4']['energy'])
+                labeltext.append(ele+r' L$\gamma$')
+        if 'M' in line:
+            # add Ma1 line in any case
+            energies.append(linedict['M5N7']['energy'])
+            labeltext.append(ele+r' M$\alpha$')
+            if quantifier == 'all':
+                #Lb1
+                energies.append(linedict['M4N6']['energy'])
+                labeltext.append(ele+r' M$\beta$')
+                #Lg1
+                energies.append(linedict['M3N5']['energy'])
+                labeltext.append(ele+r' M$\gamma$')
+    
+    # sort energies and obtain unique labeltexts
+    unique_labels, unique_id = np.unique(labeltext, return_index=True)
+    unique_energies = [energies[i] for i in unique_id]
+    sort_id = np.argsort(unique_energies)
+    unique_labels = [unique_labels[i] for i in sort_id]
+    unique_energies = [unique_energies[i] for i in sort_id]
+    
+    return unique_energies, unique_labels
     
 class Xplot_GUI(QWidget):
     
@@ -465,12 +550,14 @@ class Xplot_GUI(QWidget):
         axis_minmax_layout.addWidget(QLabel("Max:"),0,2)
         self.xmin = QLineEdit("")
         self.xmin.setMaximumWidth(500)
+        self.xmin.setValidator(QDoubleValidator(0, 1E9, 3))
         self.ymin = QLineEdit("")
         self.ymin.setMaximumWidth(500)
         axis_minmax_layout.addWidget(self.xmin,1,1)
         axis_minmax_layout.addWidget(self.ymin,2,1)
         self.xmax = QLineEdit("")
         self.xmax.setMaximumWidth(500)
+        self.xmax.setValidator(QDoubleValidator(0, 1E9, 3))
         self.ymax = QLineEdit("")
         self.ymax.setMaximumWidth(500)
         axis_minmax_layout.addWidget(self.xmax,1,2)
@@ -569,10 +656,10 @@ class Xplot_GUI(QWidget):
         options_smoothderiv_layout = QHBoxLayout()
         self.smooth = QCheckBox("Smooth data") #using from scipy.signal import savgol_filter; savgol_filter(y, 51, 3) # window size 51, polynomial order 3
         self.smooth.setMaximumWidth(100)
-        self.savgol_window = QLineEdit("51")
+        self.savgol_window = QLineEdit("5")
         self.savgol_window.setValidator(QDoubleValidator(1, 1E2, 0))
         self.savgol_window.setMaximumWidth(30)
-        self.savgol_poly = QLineEdit("3")
+        self.savgol_poly = QLineEdit("1")
         self.savgol_poly.setValidator(QDoubleValidator(1, 1E2, 0))
         self.savgol_poly.setMaximumWidth(30)
         self.deriv = QCheckBox("Plot Deriv")
@@ -582,25 +669,47 @@ class Xplot_GUI(QWidget):
         options_smoothderiv_layout.addWidget(self.deriv)
         tab_options_layout.addLayout(options_smoothderiv_layout)     
         tab_options_layout.addSpacing(10)
+        interpolate_layout = QHBoxLayout()
         self.interpolate = QCheckBox("Interpolate data")
-        tab_options_layout.addWidget(self.interpolate)
+        interpolate_layout.addWidget(self.interpolate)
+        interpolate_layout.addSpacing(5)
+        interpolate_layout.addWidget(QLabel("Order:"))
+        self.interpolate_order = QLineEdit("2")
+        self.interpolate_order.setValidator(QDoubleValidator(1, 1E2, 0))
+        self.interpolate_order.setMaximumWidth(30)
+        interpolate_layout.addWidget(self.interpolate_order)
+        interpolate_layout.addStretch()
+        tab_options_layout.addLayout(interpolate_layout)        
         tab_options_layout.addSpacing(10)
         options_errorbar_layout = QHBoxLayout()
         self.errorbar_flag = QCheckBox("Display Errorbars: ")
         options_errorbar_layout.addWidget(self.errorbar_flag)
         self.errorbar_bars = QRadioButton("Bars")
-        self.errorbar_area = QRadioButton("Area") #plt.fill_between(x, low, up, alpha=0.3)
+        self.errorbar_area = QRadioButton("Area") 
         self.errorbar_bars.setChecked(True)
         options_errorbar_layout.addWidget(self.errorbar_bars)
         options_errorbar_layout.addWidget(self.errorbar_area)
         options_errorbar_layout.addStretch()
         tab_options_layout.addLayout(options_errorbar_layout)
+        errorbar_nsigma_layout = QHBoxLayout()
+        errorbar_nsigma_layout.addSpacing(50)
+        errorbar_nsigma_layout.addWidget(QLabel("# strd dev:"))
+        self.errorbar_nsigma = QLineEdit("3")
+        self.errorbar_nsigma.setValidator(QDoubleValidator(1, 1E2, 0))
+        self.errorbar_nsigma.setMaximumWidth(30)
+        errorbar_nsigma_layout.addWidget(self.errorbar_nsigma)
+        errorbar_nsigma_layout.addStretch()
+        tab_options_layout.addLayout(errorbar_nsigma_layout)
         tab_options_layout.addSpacing(10)
         options_peakid_layout = QHBoxLayout()
         options_peakid_layout.addWidget(QLabel("Peak ID:"))
+        self.button_group = QButtonGroup()
         self.peakid_none = QRadioButton("None")
         self.peakid_main = QRadioButton("Main")
         self.peakid_all = QRadioButton("All")
+        self.button_group.addButton(self.peakid_none)
+        self.button_group.addButton(self.peakid_main)
+        self.button_group.addButton(self.peakid_all)        
         self.peakid_none.setChecked(True)
         options_peakid_layout.addWidget(self.peakid_none)
         options_peakid_layout.addWidget(self.peakid_main)
@@ -644,7 +753,7 @@ class Xplot_GUI(QWidget):
         self.Eplot_gain.returnPressed.connect(self.ctegain_update)
         self.Eplot_zero.returnPressed.connect(self.ctegain_update)
         self.fontsize_maintitle.returnPressed.connect(self.update_plot)  
-        self.fontsize_maintitle.returnPressed.connect(self.update_plot)  
+        self.fontsize_annot.returnPressed.connect(self.update_plot)  
         self.fontsize_axtitle.returnPressed.connect(self.update_plot)  
         self.fontsize_axlbl.returnPressed.connect(self.update_plot)  
         self.fontsize_legend.returnPressed.connect(self.update_plot)  
@@ -653,9 +762,21 @@ class Xplot_GUI(QWidget):
         self.vert_offset.returnPressed.connect(self.update_plot)
         self.legend_bbox.stateChanged.connect(self.update_plot)
         self.curve_sequence.clicked.connect(self.change_curve_seq)
+        self.smooth.stateChanged.connect(self.update_plot)
+        self.savgol_window.returnPressed.connect(self.update_plot)
+        self.savgol_poly.returnPressed.connect(self.update_plot)
+        self.deriv.stateChanged.connect(self.update_plot) #TODO: should change ylim as well, but no idea how to do this reversible...
+        self.errorbar_flag.stateChanged.connect(self.update_plot)
+        self.errorbar_area.toggled.connect(self.update_plot)
+        self.errorbar_bars.toggled.connect(self.update_plot)
+        self.interpolate.stateChanged.connect(self.update_plot)
+        self.interpolate_order.returnPressed.connect(self.update_plot)
+        self.button_group.buttonClicked.connect(self.update_plot)
 
     def update_plot(self):
-        if self.datadic != []:
+        if self.datadic:
+            if self.smooth.isChecked() is True:
+                from scipy.signal import savgol_filter
             if self.xkcd.isChecked() is True:
                 plt.xkcd()
             else:
@@ -669,17 +790,53 @@ class Xplot_GUI(QWidget):
                 self.mpl.axes.set_xscale('log')
             if self.ylinlog.isChecked() is True:
                 self.mpl.axes.set_yscale('log')
+            curves = []
             for index, item in enumerate(self.datadic):
                 # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
                 xdata = item["xvals"]*float(self.xmult.text())
                 ydata = item["data"]*float(self.ymult.text())
+                if item["error"] is None:
+                    yerr = None
+                else:
+                    yerr = item["error"]/item["data"] #relative error, will convert to absolute again during plotting
+                if self.smooth.isChecked() is True:
+                    ydata = savgol_filter(ydata, int(self.savgol_window.text()), int(self.savgol_poly.text()))
+                if self.deriv.isChecked() is True:
+                    ydata = np.gradient(ydata, xdata)
                 if float(self.vert_offset.text()) != 0.0:
                     newTransform = self.mpl.axes.transScale + self.mpl.axes.transLimits
                     for i in range(len(ydata)):
                         axcoords = newTransform.transform([xdata[i], ydata[i]])
                         axcoords[1] += float(self.vert_offset.text())*index # add vertical offset in relative axes height
                         ydata[i] = newTransform.inverted().transform(axcoords)[1]
-                self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), color=item["colour"])
+                curves.append(self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), color=item["colour"]))
+                # display error values
+                if self.errorbar_flag.isChecked() is True and yerr is not None:
+                    if self.errorbar_bars.isChecked() is True:
+                        eb = self.mpl.axes.errorbar(xdata, ydata, yerr*ydata*float(self.errorbar_nsigma.text()), ecolor=curves[-1][0].get_color(), 
+                                                    fmt='none', capsize=float(self.curve_thick.text())*2, elinewidth=float(self.curve_thick.text()))
+                        eb[-1][0].set_linestyle('solid')
+                    elif self.errorbar_area.isChecked() is True:
+                        eb = self.mpl.axes.fill_between(xdata, ydata-(yerr*ydata*float(self.errorbar_nsigma.text())), 
+                                                        ydata+(yerr*ydata*float(self.errorbar_nsigma.text())), alpha=0.3, color=curves[-1][0].get_color())
+                # fit curve through points and plot as dashed line in same color
+                if self.interpolate.isChecked():
+                    polyfactor = np.around(float(self.interpolate_order.text())).astype(int)
+                    try:
+                        if self.ylinlog.isChecked() is True:
+                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor)
+                        else:
+                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor)
+                        func = np.poly1d(fit_par)
+                        fit_x = np.linspace(np.min(xdata), np.max(xdata), num=np.around(np.max(xdata)-np.min(xdata)).astype(int)*2)
+                        if self.ylinlog.isChecked() is True:
+                            fit_y = 10.**(func(fit_x))
+                        else:
+                            fit_y = func(fit_x)
+                        self.mpl.axes.plot(fit_x, fit_y, linestyle='--', color=curves[-1][0].get_color())
+                    except Exception:
+                        print("Error: polynomial interpolation did not work out. Perhaps something is wrong with the data?")
+
             if self.axboxtype_single.isChecked() is True:
                 self.mpl.axes.spines[['right', 'top']].set_visible(False)
             if self.graphtitle.text() != "":
@@ -688,17 +845,97 @@ class Xplot_GUI(QWidget):
             self.mpl.axes.xaxis.set_tick_params(labelsize=np.around(float(self.fontsize_axlbl.text())).astype(int))
             self.mpl.axes.set_ylabel(self.ytitle.text(), fontsize=np.around(float(self.fontsize_axtitle.text())).astype(int))
             self.mpl.axes.yaxis.set_tick_params(labelsize=np.around(float(self.fontsize_axlbl.text())).astype(int))
+            
+            # add peak ID labels to curve
+            # make list of all labels used across all spectra
+            if self.peakid_none.isChecked() is not True:
+                labels = []
+                for item in self.datadic:
+                    if item["lines"] is not None:
+                        for n in item["lines"]:
+                            if n == 'Rayl' and item['cfg'] is not None:
+                                if type(item["cfg"][2]) is type(list()):
+                                    if item["cfg"][2][0] is not None and item["cfg"][2][0] != "None":
+                                        labels.append(n+':'+"{:.3}".format(item["cfg"][2][0]))
+                                elif item["cfg"][2] is not None and item["cfg"][2] != "None":
+                                    labels.append(n+':'+"{:.3}".format(item["cfg"][2]))
+                            elif n != 'Compt' and n != 'Rayl':
+                                labels.append(n)
+                if labels:
+                    if self.peakid_main.isChecked() is True:
+                        labelpeaks = 'main'
+                    elif self.peakid_all.isChecked() is True:
+                        labelpeaks = 'all'
+                    labels = np.unique(np.asarray(labels))
+                    # remove Rayl from this list, and treat them separately
+                    linelabels = [lbl for lbl in labels if 'Rayl' not in lbl]
+                    # obtain the corresponding energies for each label
+                    labelenergies, labeltext = ReturnLabels(linelabels, labelpeaks)
+                    labels = [lbl for lbl in labels if 'Rayl' in lbl]
+                    labels = np.unique(labels)
+                    for lbl in labels:
+                        if 'Rayl' in lbl:
+                            labelenergies.append(float(lbl.split(":")[1]))
+                            labeltext.append("Rayleigh")
+                    # sort energies
+                    sort_id = np.argsort(labelenergies)
+                    labelenergies = [labelenergies[i] for i in sort_id]
+                    labeltext = [labeltext[i] for i in sort_id]
+                    handles, labels = self.mpl.axes.get_legend_handles_labels()
+                    texts = []
+                    yval = []
+                    for index, text in enumerate(labeltext):
+                        idx = max(np.where(handles[0].get_xdata() <= labelenergies[index])[-1])
+                        # yval.append(10**(np.log10(max([hand.get_ydata()[idx] for hand in handles]))*1.025))
+                        yval.append(max([hand.get_ydata()[idx] for hand in handles]))
+                        # plot the text label X% above this value
+                        texts.append(self.mpl.axes.annotate(text, (labelenergies[index], yval[-1]), xytext=(labelenergies[index], 10**np.log10(yval[-1]*1.05)), 
+                                                            xycoords='data', horizontalalignment='center', verticalalignment='bottom', rotation=0,
+                                                            fontsize=np.around(float(self.fontsize_annot.text())).astype(int)))
+                        # texts.append(self.mpl.axes.text(labelenergies[index], yval[-1], text, horizontalalignment='center', 
+                        #                                 fontsize=np.around(float(self.fontsize_annot.text())).astype(int)))
 
+                    # newTransform = self.mpl.axes.transScale + (self.mpl.axes.transLimits + self.mpl.axes.transAxes)
+                    render = self.mpl.canvas.renderer
+                    newTransform = self.mpl.axes.transScale + self.mpl.axes.transLimits
+                    changed = 1
+                    while changed != 0:
+                        txt_clim_ax = []
+                        for text in texts:
+                            bbox = text.get_window_extent(render)
+                            # these are the coordinates (axis) of the text bounding boxes, leftbot to righttop
+                            txt_clim_ax.append(np.vstack( (self.mpl.axes.transAxes.inverted().transform([bbox.xmin, bbox.ymin]),
+                                                self.mpl.axes.transAxes.inverted().transform([bbox.xmax, bbox.ymax])) ))
+                        # now go through the coordinates and make sure they are not overlapping
+                        changed = 0
+                        for i, coord in enumerate(txt_clim_ax):
+                            # see if there is overlap in x between this label and all previous ones. If not: all's fine.
+                            previous_lbls_xoverlap = [previous for previous in txt_clim_ax[:i] if coord[0,0] < previous[1,0] ]
+                            if previous_lbls_xoverlap:
+                                # if there is an x overlap, see if there is a y overlap with those labels that overlap in x
+                                previous_lbls_yoverlap = [previous for previous in previous_lbls_xoverlap if (previous[0,1] <= coord[0,1] and coord[0,1] < previous[1,1]) or (previous[0,1] < coord[1,1] and coord[1,1] <= previous[1,1])]
+                                                          #ymin tussen previous y-range of ymax tussen previous y-range
+                                if previous_lbls_yoverlap:
+                                    new_ymin = np.max([previous[1,1] for previous in previous_lbls_yoverlap])
+                                    txt_clim_ax[i][1,1] = new_ymin+(txt_clim_ax[i][1,1]-txt_clim_ax[i][0,1])
+                                    txt_clim_ax[i][0,1] = new_ymin
+                                    texts[i].set(position=(labelenergies[i], newTransform.inverted().transform((coord[0,0], new_ymin))[1]))
+                                    changed +=1
+
+                    
+                    
             handles, labels = self.mpl.axes.get_legend_handles_labels()
             if ',' in self.legendpos.text():
                 legend_pos = tuple(map(float,self.legendpos.text().split(',')))
-            elif self.legendpos.text() in ['best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center']:
+            elif self.legendpos.text() in ['best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 
+                                           'center left', 'center right', 'lower center', 'upper center', 'center']:
                 legend_pos = self.legendpos.text()
             else:
                 legend_pos = None
                 print("Warning: did you mean one of the following: best, center right, lower center?")
             if legend_pos is not None:
-                self.mpl.axes.legend(handles, labels, loc=legend_pos, fontsize=np.around(float(self.fontsize_legend.text())).astype(int), frameon=self.legend_bbox.isChecked())
+                self.mpl.axes.legend(handles, labels, loc=legend_pos, fontsize=np.around(float(self.fontsize_legend.text())).astype(int), 
+                                     frameon=self.legend_bbox.isChecked())
 
 
 
@@ -707,7 +944,7 @@ class Xplot_GUI(QWidget):
             plt.rcdefaults()
         
     def browse_app(self):
-        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv)")[0]
+        self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
         if len(self.filenames) != 0:
             # read in first file, to obtain data on elements and dimensions
             if(self.filenames != []):
@@ -716,7 +953,7 @@ class Xplot_GUI(QWidget):
                     pass #TODO
                 elif extension == '.csv':
                     pass #TODO
-                elif extension == '.h5':
+                elif extension == '.h5' or extension == '.nxs':
                     self.new_window = Poll_h5dir(self.filenames[0])
                     if self.new_window.exec_() == QDialog.Accepted:
                         self.subdirs = self.new_window.h5dir
@@ -741,17 +978,21 @@ class Xplot_GUI(QWidget):
                     datatype = 'scatter'
                 else:
                     datatype = 'spe'
-                data, lines, config = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
+                data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
 
                 if datatype == 'spe' and config is not None:
                     xvals = np.arange(len(data))*config[1]+config[0]
                 else:
                     xvals = np.arange(len(data))
+                 
+                if error is None and datatype == 'spe':
+                    error = np.sqrt(data)
                 self.datadic.append({'filename' : h5file,
                                      'h5dir' : h5dir,
                                      'label' : os.path.basename(h5file)+':'+h5dir,
                                      'colour' : None,
                                      'data' : data,
+                                     'error' : error,
                                      'xvals' : xvals,
                                      'datatype' : datatype,
                                      'lines' : lines,
@@ -759,8 +1000,6 @@ class Xplot_GUI(QWidget):
                                      })
 
             # set GUI fields to the appropriate values
-            self.xmin.setText("{:0.0f}".format(np.around(np.min([item["xvals"] for item in self.datadic]))))
-            self.xmax.setText("{:0.0f}".format(np.around(np.max([item["xvals"] for item in self.datadic]))))
             self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
             self.ymax.setText("{:.3}".format(2.*np.max([item["data"] for item in self.datadic])))
             if self.datadic[0]['datatype'] == 'spe':
@@ -781,21 +1020,23 @@ class Xplot_GUI(QWidget):
             elif 'detlim' in self.datadic[0]['h5dir']:
                 self.xtitle.setText("Atomic Number [Z]")
                 self.ytitle.setText("Detection Limit [ppm]")
+            self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"]) for item in self.datadic])))
+            self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"]) for item in self.datadic])))
             
 
             # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
             self.update_plot()
             
     def ctegain_invert(self):
-        if self.datadic != []:
+        if self.datadic:
             if self.Eplot.isChecked() is True:
                 self.xtitle.setText("Energy [keV]")
                 if self.datadic[0]["cfg"] is not None:
-                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
-                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                    self.xmin.setText("{:.3}".format(np.around(float(self.xmin.text())*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
+                    self.xmax.setText("{:.3}".format(np.around(float(self.xmax.text())*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
                 else:
-                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
-                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmin.setText("{:.3}".format(np.around(float(self.xmin.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmax.setText("{:.3}".format(np.around(float(self.xmax.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
                 for item in self.datadic:
                     if item["cfg"] is not None:
                         item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
@@ -806,15 +1047,19 @@ class Xplot_GUI(QWidget):
                 self.ctegain_update()
         
     def ctegain_update(self):
-        if self.datadic != []:
+        if self.datadic:
+            old_xmin = self.xmin.text()
+            if old_xmin == '': old_xmin = 0
+            old_xmax = self.xmax.text()
+            if old_xmax == '': old_xmax = 0
             if self.Eplot.isChecked() is True:
                 self.xtitle.setText("Energy [keV]")
                 if self.datadic[0]["cfg"] is not None:
-                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
-                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*self.datadic[0]["cfg"][1]+self.datadic[0]["cfg"][0])))
+                    self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
+                    self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
                 else:
-                    self.xmin.setText("{:0.0f}".format(np.around(float(self.xmin.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
-                    self.xmax.setText("{:0.0f}".format(np.around(float(self.xmax.text())*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
                 for item in self.datadic:
                     if item["cfg"] is not None:
                         item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
@@ -823,11 +1068,11 @@ class Xplot_GUI(QWidget):
             else:
                 self.xtitle.setText("Detector Channel Number")
                 if self.datadic[0]["cfg"] is not None:
-                    self.xmin.setText("{:0.0f}".format(np.around((float(self.xmin.text())-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
-                    self.xmax.setText("{:0.0f}".format(np.around((float(self.xmax.text())-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                    self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                    self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
                 else:
-                    self.xmin.setText("{:0.0f}".format(np.around((float(self.xmin.text())-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
-                    self.xmax.setText("{:0.0f}".format(np.around((float(self.xmax.text())-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                    self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                    self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
                 self.Eplot_zero.setText("0")
                 self.Eplot_gain.setText("1")
                 for item in self.datadic:
@@ -836,11 +1081,11 @@ class Xplot_GUI(QWidget):
             self.update_plot()
 
     def change_curve_seq(self):
-        if self.datadic != []:
+        if self.datadic:
             self.new_window = CurveSequence(self)
             self.new_window.setFocus()
             if self.new_window.exec_() == QDialog.Accepted:
-                pass #TODO: copy the new info to the old dict self.datadic
+                self.update_plot()
             self.new_window.close()
             self.new_window = None
 
