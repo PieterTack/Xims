@@ -370,6 +370,7 @@ class CurveSequence(QDialog):
                     self.mainobj.datadic[i]["colour"] = table[i,4]
                 else:
                     self.mainobj.datadic[i]["colour"] = None
+            self.mainobj.datadic = [dic for dic in self.mainobj.datadic]
             # close spawned window and return selected elements...
             self.hide()
             super().accept()
@@ -701,6 +702,16 @@ class Xplot_GUI(QWidget):
         errorbar_nsigma_layout.addStretch()
         tab_options_layout.addLayout(errorbar_nsigma_layout)
         tab_options_layout.addSpacing(10)
+        normtochan_layout = QHBoxLayout()
+        self.normtochan = QCheckBox("Normalise to X-Value:")
+        normtochan_layout.addWidget(self.normtochan)
+        self.normtochan_channel = QLineEdit("")
+        self.normtochan_channel.setValidator(QDoubleValidator(1, 1E9, 0))
+        self.normtochan_channel.setMaximumWidth(30)
+        normtochan_layout.addWidget(self.normtochan_channel)
+        normtochan_layout.addStretch()
+        tab_options_layout.addLayout(normtochan_layout)        
+        tab_options_layout.addSpacing(10)
         options_peakid_layout = QHBoxLayout()
         options_peakid_layout.addWidget(QLabel("Peak ID:"))
         self.button_group = QButtonGroup()
@@ -724,10 +735,29 @@ class Xplot_GUI(QWidget):
         self.menu_tabs.addTab(self.tab_options, "Options")
         splitter.addWidget(self.menu_tabs)        
         self.menu_tabs.setCurrentWidget(self.tab_labels)
+        layout_main.addWidget(splitter)
 
+        button_layout = QHBoxLayout()
+        self.refresh = QPushButton("Refresh")
+        self.refresh.setAutoDefault(False) # set False as otherwise this button is called on each return
+        self.refresh.setMaximumWidth(200)
+        button_layout.addWidget(self.refresh)
+        self.load_settings = QPushButton("Load Settings")
+        self.load_settings.setAutoDefault(False) # set False as otherwise this button is called on each return
+        self.load_settings.setMaximumWidth(200)
+        button_layout.addWidget(self.load_settings)
+        self.save_settings = QPushButton("Save Settings")
+        self.save_settings.setAutoDefault(False) # set False as otherwise this button is called on each return
+        self.save_settings.setMaximumWidth(200)
+        button_layout.addWidget(self.save_settings)
+        self.savepng = QPushButton("Save Image")
+        self.savepng.setAutoDefault(False) # set False as otherwise this button is called on each return
+        self.savepng.setMaximumWidth(200)
+        button_layout.addWidget(self.savepng)
+
+        layout_main.addLayout(button_layout)
     
         # show window
-        layout_main.addWidget(splitter)
         self.setLayout(layout_main)
         self.setWindowTitle('Xplot GUI')
         self.show()
@@ -771,7 +801,13 @@ class Xplot_GUI(QWidget):
         self.errorbar_bars.toggled.connect(self.update_plot)
         self.interpolate.stateChanged.connect(self.update_plot)
         self.interpolate_order.returnPressed.connect(self.update_plot)
+        self.normtochan.stateChanged.connect(self.update_plot)
+        self.normtochan_channel.returnPressed.connect(self.update_plot)
         self.button_group.buttonClicked.connect(self.update_plot)
+        self.peakid_arrows.stateChanged.connect(self.update_plot)
+        self.refresh.clicked.connect(self.update_plot)
+        self.savepng.clicked.connect(self.save_png)
+
 
     def update_plot(self):
         if self.datadic:
@@ -790,11 +826,28 @@ class Xplot_GUI(QWidget):
                 self.mpl.axes.set_xscale('log')
             if self.ylinlog.isChecked() is True:
                 self.mpl.axes.set_yscale('log')
+                normfactor = []
+            if self.normtochan.isChecked() is True:
+                xval2norm = float(self.normtochan_channel.text())
+                xvals = self.datadic[0]["xvals"]*float(self.xmult.text())
+                x_id = np.max(np.where(xvals <= xval2norm))
+                if x_id:
+                    yval2norm = (self.datadic[0]["data"]*float(self.ymult.text()))[x_id]
+                    for index, item in enumerate(self.datadic):
+                         xvals = item["xvals"]*float(self.xmult.text())
+                         x_id = np.max(np.where(xvals <= xval2norm))
+                         if x_id:
+                             normfactor.append((self.datadic[0]["data"]*float(self.ymult.text()))[x_id]/yval2norm)
+                         else:
+                            normfactor.append(1)
+                            print("Warning: X value to normalise to is not in range of curve %i" %index)
+                else:
+                    print("Warning: X value to normalise to is not in range of curve 0")
             curves = []
             for index, item in enumerate(self.datadic):
                 # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
                 xdata = item["xvals"]*float(self.xmult.text())
-                ydata = item["data"]*float(self.ymult.text())
+                ydata = item["data"]*float(self.ymult.text())/normfactor[index]
                 if item["error"] is None:
                     yerr = None
                 else:
@@ -864,8 +917,10 @@ class Xplot_GUI(QWidget):
                 if labels:
                     if self.peakid_main.isChecked() is True:
                         labelpeaks = 'main'
+                        NiterMax = 99
                     elif self.peakid_all.isChecked() is True:
                         labelpeaks = 'all'
+                        NiterMax = 299
                     labels = np.unique(np.asarray(labels))
                     # remove Rayl from this list, and treat them separately
                     linelabels = [lbl for lbl in labels if 'Rayl' not in lbl]
@@ -884,43 +939,78 @@ class Xplot_GUI(QWidget):
                     handles, labels = self.mpl.axes.get_legend_handles_labels()
                     texts = []
                     yval = []
-                    for index, text in enumerate(labeltext):
-                        idx = max(np.where(handles[0].get_xdata() <= labelenergies[index])[-1])
-                        # yval.append(10**(np.log10(max([hand.get_ydata()[idx] for hand in handles]))*1.025))
-                        yval.append(max([hand.get_ydata()[idx] for hand in handles]))
-                        # plot the text label X% above this value
-                        texts.append(self.mpl.axes.annotate(text, (labelenergies[index], yval[-1]), xytext=(labelenergies[index], 10**np.log10(yval[-1]*1.05)), 
-                                                            xycoords='data', horizontalalignment='center', verticalalignment='bottom', rotation=0,
-                                                            fontsize=np.around(float(self.fontsize_annot.text())).astype(int)))
-                        # texts.append(self.mpl.axes.text(labelenergies[index], yval[-1], text, horizontalalignment='center', 
-                        #                                 fontsize=np.around(float(self.fontsize_annot.text())).astype(int)))
-
-                    # newTransform = self.mpl.axes.transScale + (self.mpl.axes.transLimits + self.mpl.axes.transAxes)
                     render = self.mpl.canvas.renderer
                     newTransform = self.mpl.axes.transScale + self.mpl.axes.transLimits
+                    for index, text in enumerate(labeltext):
+                        idx = max(np.where(handles[0].get_xdata() <= labelenergies[index])[-1])
+                        yval.append(max([hand.get_ydata()[idx] for hand in handles]))
+                        # plot the text label X% above this value
+                        temp = newTransform.transform([labelenergies[index],yval[-1]])
+                        temp[1] += 0.025
+                        xyann = newTransform.inverted().transform(temp)
+                        texts.append(self.mpl.axes.annotate(text, (labelenergies[index], yval[-1]), xytext=xyann, 
+                                                            xycoords='data', horizontalalignment='center', verticalalignment='bottom', rotation=0,
+                                                            fontsize=np.around(float(self.fontsize_annot.text())).astype(int)))
+
+                    # obtain maxima of all curves in axes coordinates so we can check whether there is overlap with the labels
+                    curve_x = np.arange(1001)/1000 #array from 0 to 1, representing curve axis values
+                    curve_y = np.arange(len(curve_x)).astype(float)*0.
+                    for curve in curves:
+                        xdata = [newTransform.transform(x)[0] for x in zip(curve[0].get_xdata(),curve[0].get_ydata())]
+                        ydata = [newTransform.transform(x)[1] for x in zip(curve[0].get_xdata(),curve[0].get_ydata())]
+                        for i in range(1,len(curve_x)):
+                            ymax = [ydata[nr] for nr in np.where(xdata <= curve_x[i])[0] if xdata[nr] > curve_x[i-1]]
+                            if ymax:
+                                if np.max(ymax) > curve_y[i]:
+                                    curve_y[i] = np.max(ymax)
+                    # iterate over the labels and adjust positions where necessary
                     changed = 1
-                    while changed != 0:
+                    N_iter = 0
+                    while changed != 0 and N_iter <= NiterMax:
+                        changed = 0
+                        N_iter+=1
                         txt_clim_ax = []
                         for text in texts:
-                            bbox = text.get_window_extent(render)
+                            bbox = text.get_tightbbox(render)  #get_window_extent(render)
                             # these are the coordinates (axis) of the text bounding boxes, leftbot to righttop
                             txt_clim_ax.append(np.vstack( (self.mpl.axes.transAxes.inverted().transform([bbox.xmin, bbox.ymin]),
                                                 self.mpl.axes.transAxes.inverted().transform([bbox.xmax, bbox.ymax])) ))
                         # now go through the coordinates and make sure they are not overlapping
-                        changed = 0
                         for i, coord in enumerate(txt_clim_ax):
+                            # see if this label overlaps with curve or is below it. If so, translate it to above the curve
+                            ymax_curve = [curve_y[nr] for nr in np.where(curve_x >= coord[0,0])[0] if curve_x[nr] < coord[1,0] ]
+                            if ymax_curve:
+                                if np.max(ymax_curve)*1.025 > coord[0,1]:
+                                    new_ymin = np.max(ymax_curve)*1.025
+                                    txt_clim_ax[i][1,1] = new_ymin+(txt_clim_ax[i][1,1]-txt_clim_ax[i][0,1])
+                                    txt_clim_ax[i][0,1] = new_ymin
+                                    texts[i].set(position=(labelenergies[i], newTransform.inverted().transform((coord[0,0], new_ymin))[1]))
+                                    changed +=1
                             # see if there is overlap in x between this label and all previous ones. If not: all's fine.
                             previous_lbls_xoverlap = [previous for previous in txt_clim_ax[:i] if coord[0,0] < previous[1,0] ]
                             if previous_lbls_xoverlap:
                                 # if there is an x overlap, see if there is a y overlap with those labels that overlap in x
+                                # first check if we can fit the label in between the curve and the other labels
+                                if (np.min([previous[0,1] for previous in previous_lbls_xoverlap])-np.max(ymax_curve)*1.025) > (txt_clim_ax[i][1,1]-txt_clim_ax[i][0,1]):
+                                    new_ymin = np.max(ymax_curve)*1.025
+                                    txt_clim_ax[i][1,1] = new_ymin+(txt_clim_ax[i][1,1]-txt_clim_ax[i][0,1])
+                                    txt_clim_ax[i][0,1] = new_ymin
+                                    texts[i].set(position=(labelenergies[i], newTransform.inverted().transform((coord[0,0], new_ymin))[1]))
+                                    changed +=1
                                 previous_lbls_yoverlap = [previous for previous in previous_lbls_xoverlap if (previous[0,1] <= coord[0,1] and coord[0,1] < previous[1,1]) or (previous[0,1] < coord[1,1] and coord[1,1] <= previous[1,1])]
                                                           #ymin tussen previous y-range of ymax tussen previous y-range
                                 if previous_lbls_yoverlap:
+                                    # if we cannot put it between the curve and others, let's just put it above them
                                     new_ymin = np.max([previous[1,1] for previous in previous_lbls_yoverlap])
                                     txt_clim_ax[i][1,1] = new_ymin+(txt_clim_ax[i][1,1]-txt_clim_ax[i][0,1])
                                     txt_clim_ax[i][0,1] = new_ymin
                                     texts[i].set(position=(labelenergies[i], newTransform.inverted().transform((coord[0,0], new_ymin))[1]))
                                     changed +=1
+                    print("Label positioning finished in %i iterations." % N_iter)
+                    if self.peakid_arrows.isChecked() is True:
+                        for text in texts:
+                            self.mpl.axes.annotate("", xy=text.xy, xycoords='data', xytext=text.xyann, textcoords='data',
+                                                    arrowprops=dict(arrowstyle="->", connectionstyle="arc3", alpha=0.5))
 
                     
                     
@@ -942,6 +1032,11 @@ class Xplot_GUI(QWidget):
             self.mpl.canvas.draw()
             # to make sure we don't screw up matplotlib for other processes, undo the xkcd style
             plt.rcdefaults()
+
+    def save_png(self):
+        imagename = QFileDialog.getSaveFileName(self, caption="Save PNG in:", filter="PNG (*.png)")[0]
+        if len(imagename) != 0:
+            self.mpl.canvas.print_figure(imagename, dpi=300)
         
     def browse_app(self):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
@@ -981,9 +1076,9 @@ class Xplot_GUI(QWidget):
                 data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
 
                 if datatype == 'spe' and config is not None:
-                    xvals = np.arange(len(data))*config[1]+config[0]
+                    xvals = np.arange(len(data)).astype(float)*config[1]+config[0]
                 else:
-                    xvals = np.arange(len(data))
+                    xvals = np.arange(len(data)).astype(float)
                  
                 if error is None and datatype == 'spe':
                     error = np.sqrt(data)
@@ -1020,9 +1115,9 @@ class Xplot_GUI(QWidget):
             elif 'detlim' in self.datadic[0]['h5dir']:
                 self.xtitle.setText("Atomic Number [Z]")
                 self.ytitle.setText("Detection Limit [ppm]")
-            self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"]) for item in self.datadic])))
-            self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"]) for item in self.datadic])))
-            
+            self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"].astype(float)) for item in self.datadic])))
+            self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"].astype(float)) for item in self.datadic])))
+        
 
             # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
             self.update_plot()
