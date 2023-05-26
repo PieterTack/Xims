@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, QButtonGrou
 def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
     with h5py.File(h5file, 'r') as f:
         spe = np.array(f[channel])
+        spe[~np.isfinite(spe)] = 0. # remove NaN and Inf values
         
         # find detector channel
         detchnl = [detchnl for detchnl in channel.split('/') if 'channel' in detchnl]
@@ -52,9 +53,13 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
 
         # look for error values, else return None
         if channel+'_stddev' in f.keys():
-            error = f[channel+'_stddev']
+            error = np.asarray(f[channel+'_stddev'])
+        elif '/'.join(channel.split('/')[0:-1])+'/stddev' in f.keys():
+            error = np.asarray(f['/'.join(channel.split('/')[0:-1])+'/stddev'])
         else:
             error = None
+        if error is not None:
+            error[~np.isfinite(error)] = 0. # remove NaN and Inf values
 
     if cfg is not None:
         if os.path.exists(cfg): # we're looking for the energy calibration values...
@@ -706,7 +711,7 @@ class Xplot_GUI(QWidget):
         self.normtochan = QCheckBox("Normalise to X-Value:")
         normtochan_layout.addWidget(self.normtochan)
         self.normtochan_channel = QLineEdit("")
-        self.normtochan_channel.setValidator(QDoubleValidator(1, 1E9, 0))
+        self.normtochan_channel.setValidator(QDoubleValidator(1, 1E9, 3))
         self.normtochan_channel.setMaximumWidth(30)
         normtochan_layout.addWidget(self.normtochan_channel)
         normtochan_layout.addStretch()
@@ -826,18 +831,21 @@ class Xplot_GUI(QWidget):
                 self.mpl.axes.set_xscale('log')
             if self.ylinlog.isChecked() is True:
                 self.mpl.axes.set_yscale('log')
-                normfactor = []
+            normfactor = []
             if self.normtochan.isChecked() is True:
                 xval2norm = float(self.normtochan_channel.text())
                 xvals = self.datadic[0]["xvals"]*float(self.xmult.text())
                 x_id = np.max(np.where(xvals <= xval2norm))
+                print(xvals)
+                print(x_id)
                 if x_id:
                     yval2norm = (self.datadic[0]["data"]*float(self.ymult.text()))[x_id]
+                    print(yval2norm)
                     for index, item in enumerate(self.datadic):
                          xvals = item["xvals"]*float(self.xmult.text())
                          x_id = np.max(np.where(xvals <= xval2norm))
                          if x_id:
-                             normfactor.append((self.datadic[0]["data"]*float(self.ymult.text()))[x_id]/yval2norm)
+                             normfactor.append((item["data"]*float(self.ymult.text()))[x_id]/yval2norm)
                          else:
                             normfactor.append(1)
                             print("Warning: X value to normalise to is not in range of curve %i" %index)
@@ -847,11 +855,14 @@ class Xplot_GUI(QWidget):
             for index, item in enumerate(self.datadic):
                 # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
                 xdata = item["xvals"]*float(self.xmult.text())
-                ydata = item["data"]*float(self.ymult.text())/normfactor[index]
+                ydata = item["data"]*float(self.ymult.text())
+                if normfactor:
+                    ydata = ydata/normfactor[index]
                 if item["error"] is None:
                     yerr = None
                 else:
-                    yerr = item["error"]/item["data"] #relative error, will convert to absolute again during plotting
+                    yerr = item["error"]*0.
+                    np.divide(item["error"],item["data"], out=yerr, where=item["data"]!=0) #relative error, will convert to absolute again during plotting
                 if self.smooth.isChecked() is True:
                     ydata = savgol_filter(ydata, int(self.savgol_window.text()), int(self.savgol_poly.text()))
                 if self.deriv.isChecked() is True:
@@ -862,7 +873,8 @@ class Xplot_GUI(QWidget):
                         axcoords = newTransform.transform([xdata[i], ydata[i]])
                         axcoords[1] += float(self.vert_offset.text())*index # add vertical offset in relative axes height
                         ydata[i] = newTransform.inverted().transform(axcoords)[1]
-                curves.append(self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), color=item["colour"]))
+                curves.append(self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), 
+                                                 linestyle=item["plotline"], marker=item["plotmark"], color=item["colour"]))
                 # display error values
                 if self.errorbar_flag.isChecked() is True and yerr is not None:
                     if self.errorbar_bars.isChecked() is True:
@@ -1059,7 +1071,9 @@ class Xplot_GUI(QWidget):
             # read the data from all files/directories
             files = self.filedir.text()[1:-1].split('","')
             self.datadic = []
-            for file in files:
+            from matplotlib.lines import Line2D
+            marks = [mark for mark in Line2D.markers.keys()][2:18]
+            for index, file in enumerate(files):
                 h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
                 h5dir = file.split(':')[-1]
                 # check datatype based on h5dir
@@ -1075,8 +1089,17 @@ class Xplot_GUI(QWidget):
                     datatype = 'spe'
                 data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
 
+                linetype = '-'
+                marker = ''
                 if datatype == 'spe' and config is not None:
                     xvals = np.arange(len(data)).astype(float)*config[1]+config[0]
+                elif datatype == 'spe' and config is None:
+                    xvals = np.arange(len(data)).astype(float)
+                elif datatype == 'scatter': # all scatter types need x-axis as Z based on lines
+                    from PyMca5.PyMcaPhysics.xrf import Elements
+                    xvals = np.asarray([Elements.getz(label.split(" ")[0]) for label in lines])
+                    linetype = ''
+                    marker = marks[index%len(marks)]
                 else:
                     xvals = np.arange(len(data)).astype(float)
                  
@@ -1086,6 +1109,8 @@ class Xplot_GUI(QWidget):
                                      'h5dir' : h5dir,
                                      'label' : os.path.basename(h5file)+':'+h5dir,
                                      'colour' : None,
+                                     'plotline' : linetype,
+                                     'plotmark' : marker,
                                      'data' : data,
                                      'error' : error,
                                      'xvals' : xvals,
@@ -1095,9 +1120,10 @@ class Xplot_GUI(QWidget):
                                      })
 
             # set GUI fields to the appropriate values
-            self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
-            self.ymax.setText("{:.3}".format(2.*np.max([item["data"] for item in self.datadic])))
+            self.ymax.setText("{:.3}".format(1.5*np.max([item["data"] for item in self.datadic])))
+            self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
             if self.datadic[0]['datatype'] == 'spe':
+                self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
                 self.ytitle.setText("Intensity [Counts]")
                 if self.datadic[0]['cfg'] is None:
                     self.xtitle.setText("Detector Channel Number")
