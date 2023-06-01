@@ -315,13 +315,13 @@ class CurveSequence(QDialog):
         self.mainobj = mainobj
         
         # we need 5 columns: Sequence, filename (ineditable), datadir (ineditable), label, colour
-        self.table_widget = QTableWidget(len(self.mainobj.datadic), 5)
+        self.table_widget = QTableWidget(len(self.mainobj.datadic), 7)
         header = self.table_widget.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
         layout_main.addWidget(self.table_widget)
         # Set some Title cells
-        self.table_widget.setHorizontalHeaderLabels(["Sequence", "File", "Directory", "Label", "Colour"])
+        self.table_widget.setHorizontalHeaderLabels(["Sequence", "File", "Directory", "Label", "Colour", "Linetype", "Marker"])
         # Set all the subsequent datadic cells
         for index,data in enumerate(self.mainobj.datadic):
             self.table_widget.setItem(index, 0, QTableWidgetItem("{:0.0f}".format(index))) #sequence in the dictionary
@@ -337,6 +337,16 @@ class CurveSequence(QDialog):
             else:
                 itemtext = data["colour"]
             self.table_widget.setItem(index, 4,QTableWidgetItem(itemtext))
+            if data["plotline"] is None:
+                itemtext = "None"
+            else:
+                itemtext = data["plotline"]
+            self.table_widget.setItem(index, 5,QTableWidgetItem(itemtext))
+            if data["plotmark"] is None:
+                itemtext = "None"
+            else:
+                itemtext = data["plotmark"]
+            self.table_widget.setItem(index, 6,QTableWidgetItem(itemtext))
         
         # Apply changes button
         self.set = QPushButton("Apply")
@@ -375,6 +385,14 @@ class CurveSequence(QDialog):
                     self.mainobj.datadic[i]["colour"] = table[i,4]
                 else:
                     self.mainobj.datadic[i]["colour"] = None
+                if table[i,5].lower() != 'none':
+                    self.mainobj.datadic[i]["plotline"] = table[i,5]
+                else:
+                    self.mainobj.datadic[i]["plotline"] = None
+                if table[i,6].lower() != 'none':
+                    self.mainobj.datadic[i]["plotmark"] = table[i,6]
+                else:
+                    self.mainobj.datadic[i]["plotmark"] = None
             self.mainobj.datadic = [dic for dic in self.mainobj.datadic]
             # close spawned window and return selected elements...
             self.hide()
@@ -571,7 +589,8 @@ class Xplot_GUI(QWidget):
         tab_labels_layout.addLayout(axis_minmax_layout)
         tab_labels_layout.addSpacing(20)
         axis_Eplot_layout = QHBoxLayout()
-        self.Eplot = QCheckBox("Display X-axis as Energy")
+        self.Eplot = QCheckBox("Convert X-axis to Energy or AtomicSymbol")
+        self.Eplot.setToolTip ("Display SPE data with Energy X-axis or display scatter plot data with Atomic Symbol names.\n If zero is not 0 the X-axis is replaced by LabelNames, if gain is not zero the top X-axis is replaced by LabelNames.")
         axis_Eplot_layout.addWidget(self.Eplot)
         tab_labels_layout.addLayout(axis_Eplot_layout)
         axis_ZeroGain_layout = QHBoxLayout()
@@ -836,11 +855,8 @@ class Xplot_GUI(QWidget):
                 xval2norm = float(self.normtochan_channel.text())
                 xvals = self.datadic[0]["xvals"]*float(self.xmult.text())
                 x_id = np.max(np.where(xvals <= xval2norm))
-                print(xvals)
-                print(x_id)
                 if x_id:
                     yval2norm = (self.datadic[0]["data"]*float(self.ymult.text()))[x_id]
-                    print(yval2norm)
                     for index, item in enumerate(self.datadic):
                          xvals = item["xvals"]*float(self.xmult.text())
                          x_id = np.max(np.where(xvals <= xval2norm))
@@ -851,6 +867,38 @@ class Xplot_GUI(QWidget):
                             print("Warning: X value to normalise to is not in range of curve %i" %index)
                 else:
                     print("Warning: X value to normalise to is not in range of curve 0")
+            if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
+                from PyMca5.PyMcaPhysics.xrf import Elements
+                all_lines = []
+                all_ydata = []
+                for index, item in enumerate(self.datadic):
+                    lines = item["lines"]
+                    ydata = item["data"]*float(self.ymult.text())
+                    if normfactor:
+                        ydata = ydata/normfactor[index]
+                    for line in lines:
+                        all_lines.append(line)
+                    for y in ydata:
+                        all_ydata.append(y)
+                unique_lines = np.unique(np.asarray(all_lines, dtype='str'))
+                all_lines = np.asarray(all_lines, dtype='str')
+                all_ydata = np.asarray(all_ydata)
+                ydata_av = np.asarray([np.average(all_ydata[np.where(all_lines == tag)]) for tag in unique_lines])
+                lines_z = np.asarray([Elements.getz(name.split(" ")[0]) for name in unique_lines])
+                unique_z = np.unique(lines_z)
+                if unique_z.size != lines_z.size:
+                    new_z = unique_z
+                    new_labels = []
+                    for i in range(0, unique_z.size):
+                        z_indices = np.where(lines_z == unique_z[i])[0].astype(int)
+                        y_order = np.flip(np.argsort(ydata_av[z_indices]))
+                        new_labels.append("\n".join(unique_lines[z_indices][y_order]))
+                    new_labels = np.asarray(new_labels)
+                else:
+                    new_z = np.asarray(lines_z)
+                    new_labels = np.asarray(unique_lines)
+                new_labels = new_labels[np.argsort(new_z)]
+                new_z = new_z[np.argsort(new_z)]
             curves = []
             for index, item in enumerate(self.datadic):
                 # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
@@ -875,6 +923,17 @@ class Xplot_GUI(QWidget):
                         ydata[i] = newTransform.inverted().transform(axcoords)[1]
                 curves.append(self.mpl.axes.plot(xdata, ydata, label=item["label"], linewidth=float(self.curve_thick.text()), 
                                                  linestyle=item["plotline"], marker=item["plotmark"], color=item["colour"]))
+                if index == 0:
+                    self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+                    if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
+                        self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
+                        if float(self.Eplot_gain.text()) == 1:
+                            secaxx = self.mpl.axes.secondary_xaxis('top')
+                            secaxx.set_xticks(new_z)
+                            secaxx.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                        if float(self.Eplot_zero.text()) == 1:
+                            self.mpl.axes.set_xticks(new_z)
+                            self.mpl.axes.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                 # display error values
                 if self.errorbar_flag.isChecked() is True and yerr is not None:
                     if self.errorbar_bars.isChecked() is True:
@@ -891,7 +950,7 @@ class Xplot_GUI(QWidget):
                         if self.ylinlog.isChecked() is True:
                             fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor)
                         else:
-                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor)
+                            fit_par = np.polyfit(xdata, ydata, polyfactor)
                         func = np.poly1d(fit_par)
                         fit_x = np.linspace(np.min(xdata), np.max(xdata), num=np.around(np.max(xdata)-np.min(xdata)).astype(int)*2)
                         if self.ylinlog.isChecked() is True:
@@ -1150,7 +1209,7 @@ class Xplot_GUI(QWidget):
             
     def ctegain_invert(self):
         if self.datadic:
-            if self.Eplot.isChecked() is True:
+            if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == 'spe':
                 self.xtitle.setText("Energy [keV]")
                 if self.datadic[0]["cfg"] is not None:
                     self.xmin.setText("{:.3}".format(np.around(float(self.xmin.text())*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
@@ -1173,31 +1232,32 @@ class Xplot_GUI(QWidget):
             if old_xmin == '': old_xmin = 0
             old_xmax = self.xmax.text()
             if old_xmax == '': old_xmax = 0
-            if self.Eplot.isChecked() is True:
-                self.xtitle.setText("Energy [keV]")
-                if self.datadic[0]["cfg"] is not None:
-                    self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
-                    self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
-                else:
-                    self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
-                    self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
-                for item in self.datadic:
-                    if item["cfg"] is not None:
-                        item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
+            if self.datadic[0]["datatype"] == 'spe':
+                if self.Eplot.isChecked() is True:
+                    self.xtitle.setText("Energy [keV]")
+                    if self.datadic[0]["cfg"] is not None:
+                        self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
+                        self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.datadic[0]["cfg"][1])+float(self.datadic[0]["cfg"][0]))))
                     else:
-                        item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
-            else:
-                self.xtitle.setText("Detector Channel Number")
-                if self.datadic[0]["cfg"] is not None:
-                    self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
-                    self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                        self.xmin.setText("{:.3}".format(np.around(float(old_xmin)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                        self.xmax.setText("{:.3}".format(np.around(float(old_xmax)*float(self.Eplot_gain.text())+float(self.Eplot_zero.text()))))
+                    for item in self.datadic:
+                        if item["cfg"] is not None:
+                            item["xvals"] = item["xvals"] = np.arange(len(item["data"]))*float(item["cfg"][1])+float(item["cfg"][0])
+                        else:
+                            item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
                 else:
-                    self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
-                    self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
-                self.Eplot_zero.setText("0")
-                self.Eplot_gain.setText("1")
-                for item in self.datadic:
-                    item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
+                    self.xtitle.setText("Detector Channel Number")
+                    if self.datadic[0]["cfg"] is not None:
+                        self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                        self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-self.datadic[0]["cfg"][0])/self.datadic[0]["cfg"][1])))
+                    else:
+                        self.xmin.setText("{:.3}".format(np.around((float(old_xmin)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                        self.xmax.setText("{:.3}".format(np.around((float(old_xmax)-float(self.Eplot_zero.text()))/float(self.Eplot_gain.text()))))
+                    self.Eplot_zero.setText("0")
+                    self.Eplot_gain.setText("1")
+                    for item in self.datadic:
+                        item["xvals"] = np.arange(len(item["data"]))*float(self.Eplot_gain.text())+float(self.Eplot_zero.text())
                 
             self.update_plot()
 
