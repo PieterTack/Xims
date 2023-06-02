@@ -835,8 +835,6 @@ class Xplot_GUI(QWidget):
 
     def update_plot(self):
         if self.datadic:
-            if self.smooth.isChecked() is True:
-                from scipy.signal import savgol_filter
             if self.xkcd.isChecked() is True:
                 plt.xkcd()
             else:
@@ -912,6 +910,8 @@ class Xplot_GUI(QWidget):
                     yerr = item["error"]*0.
                     np.divide(item["error"],item["data"], out=yerr, where=item["data"]!=0) #relative error, will convert to absolute again during plotting
                 if self.smooth.isChecked() is True:
+                    if 'savgol_filter' not in dir():
+                        from scipy.signal import savgol_filter
                     ydata = savgol_filter(ydata, int(self.savgol_window.text()), int(self.savgol_poly.text()))
                 if self.deriv.isChecked() is True:
                     ydata = np.gradient(ydata, xdata)
@@ -941,7 +941,7 @@ class Xplot_GUI(QWidget):
                                                     fmt='none', capsize=float(self.curve_thick.text())*2, elinewidth=float(self.curve_thick.text()))
                         eb[-1][0].set_linestyle('solid')
                     elif self.errorbar_area.isChecked() is True:
-                        eb = self.mpl.axes.fill_between(xdata, ydata-(yerr*ydata*float(self.errorbar_nsigma.text())), 
+                        self.mpl.axes.fill_between(xdata, ydata-(yerr*ydata*float(self.errorbar_nsigma.text())), 
                                                         ydata+(yerr*ydata*float(self.errorbar_nsigma.text())), alpha=0.3, color=curves[-1][0].get_color())
                 # fit curve through points and plot as dashed line in same color
                 if self.interpolate.isChecked():
@@ -986,6 +986,7 @@ class Xplot_GUI(QWidget):
                             elif n != 'Compt' and n != 'Rayl':
                                 labels.append(n)
                 if labels:
+                    labelpeaks = ''
                     if self.peakid_main.isChecked() is True:
                         labelpeaks = 'main'
                         NiterMax = 99
