@@ -660,6 +660,28 @@ class Xplot_GUI(QWidget):
         custom_curve_layout.addWidget(self.vert_offset)
         tab_custom_layout.addLayout(custom_curve_layout)
         tab_custom_layout.addSpacing(10)
+        set_Xticks_layout = QHBoxLayout()
+        self.setXticks = QCheckBox("Set X-ticks:")
+        self.setXticks.setToolTip("Define Xticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Xticks_layout.addWidget(self.setXticks)
+        self.setXticks_values = QLineEdit("None")
+        self.setXticks_values.setMaximumWidth(250)
+        self.setXticks_values.setToolTip("Define Xticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Xticks_layout.addWidget(self.setXticks_values)
+        set_Xticks_layout.addStretch()
+        tab_custom_layout.addLayout(set_Xticks_layout)
+        tab_custom_layout.addSpacing(10)
+        set_Yticks_layout = QHBoxLayout()
+        self.setYticks = QCheckBox("Set Y-ticks:")
+        self.setYticks.setToolTip("Define Yticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Yticks_layout.addWidget(self.setYticks)
+        self.setYticks_values = QLineEdit("None")
+        self.setYticks_values.setMaximumWidth(250)
+        self.setYticks_values.setToolTip("Define Yticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Yticks_layout.addWidget(self.setYticks_values)
+        set_Yticks_layout.addStretch()
+        tab_custom_layout.addLayout(set_Yticks_layout)
+        tab_custom_layout.addSpacing(10)
         custom_positions_layout = QHBoxLayout()
         custom_positions_layout.addWidget(QLabel('Legend position:'))
         self.legendpos = QLineEdit("best") #best or other loc or xpos,ypos
@@ -860,6 +882,10 @@ class Xplot_GUI(QWidget):
         self.show_Llines.stateChanged.connect(self.update_plot)
         self.omitXrange.stateChanged.connect(self.update_plot)
         self.omitXrange_range.returnPressed.connect(self.update_plot)
+        self.setXticks.stateChanged.connect(self.update_plot)
+        self.setXticks_values.returnPressed.connect(self.update_plot)
+        self.setYticks.stateChanged.connect(self.update_plot)
+        self.setYticks_values.returnPressed.connect(self.update_plot)
 
 
     def update_plot(self):
@@ -1019,15 +1045,34 @@ class Xplot_GUI(QWidget):
                                                  linestyle=item["plotline"], marker=item["plotmark"], color=item["colour"]))
                 if index == 0:
                     self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+                    if self.setXticks.isChecked() is True:
+                        if self.setXticks_values.text() == "" or self.setXticks_values.text().lower() == "none":
+                            self.mpl.axes.set_xticks([])
+                        else:
+                            xtick_list = eval(self.setXticks_values.text())
+                            if len(xtick_list) >= 3:
+                                rotation = xtick_list[2]
+                            else:
+                                rotation = 0
+                            self.mpl.axes.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                    if self.setYticks.isChecked() is True:
+                        if self.setYticks_values.text() == "" or self.setYticks_values.text().lower() == "none":
+                            self.mpl.axes.set_yticks([])
+                            self.mpl.axes.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+                        else:
+                            ytick_list = eval(self.setYticks_values.text())
+                            if len(ytick_list) >= 3:
+                                rotation = ytick_list[2]
+                            else:
+                                rotation = 0
+                            self.mpl.axes.set_yticks(ytick_list[0], labels=ytick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
                     if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
                         self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
                         if float(self.Eplot_gain.text()) == 1:
                             secaxx = self.mpl.axes.secondary_xaxis('top')
-                            secaxx.set_xticks(new_z)
-                            secaxx.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                            secaxx.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                         if float(self.Eplot_zero.text()) == 1:
-                            self.mpl.axes.set_xticks(new_z)
-                            self.mpl.axes.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                            self.mpl.axes.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                 # display error values
                 if self.errorbar_flag.isChecked() is True and yerr is not None:
                     if self.errorbar_bars.isChecked() is True:
