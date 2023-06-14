@@ -751,7 +751,7 @@ class Xplot_GUI(QWidget):
         self.normtochan = QCheckBox("Normalise to X-Value:")
         normtochan_layout.addWidget(self.normtochan)
         self.normtochan_channel = QLineEdit("")
-        self.normtochan_channel.setValidator(QDoubleValidator(1, 1E9, 3))
+        self.normtochan_channel.setValidator(QDoubleValidator(0, 1E9, 3))
         self.normtochan_channel.setMaximumWidth(30)
         normtochan_layout.addWidget(self.normtochan_channel)
         normtochan_layout.addStretch()
