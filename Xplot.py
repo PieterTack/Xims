@@ -670,7 +670,6 @@ class Xplot_GUI(QWidget):
         set_Xticks_layout.addWidget(self.setXticks_values)
         set_Xticks_layout.addStretch()
         tab_custom_layout.addLayout(set_Xticks_layout)
-        tab_custom_layout.addSpacing(10)
         set_Yticks_layout = QHBoxLayout()
         self.setYticks = QCheckBox("Set Y-ticks:")
         self.setYticks.setToolTip("Define Yticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
@@ -876,8 +875,6 @@ class Xplot_GUI(QWidget):
         self.normtochan_channel.returnPressed.connect(self.update_plot)
         self.button_group.buttonClicked.connect(self.update_plot)
         self.peakid_arrows.stateChanged.connect(self.update_plot)
-        self.refresh.clicked.connect(self.update_plot)
-        self.savepng.clicked.connect(self.save_png)
         self.show_Klines.stateChanged.connect(self.update_plot)
         self.show_Llines.stateChanged.connect(self.update_plot)
         self.omitXrange.stateChanged.connect(self.update_plot)
@@ -886,6 +883,10 @@ class Xplot_GUI(QWidget):
         self.setXticks_values.returnPressed.connect(self.update_plot)
         self.setYticks.stateChanged.connect(self.update_plot)
         self.setYticks_values.returnPressed.connect(self.update_plot)
+        self.refresh.clicked.connect(self.update_plot)
+        self.savepng.clicked.connect(self.save_png)
+        self.save_settings.clicked.connect(self.savesettings)
+        self.load_settings.clicked.connect(self.loadsettings)
 
 
     def update_plot(self):
@@ -904,7 +905,7 @@ class Xplot_GUI(QWidget):
             if self.ylinlog.isChecked() is True:
                 self.mpl.axes.set_yscale('log')
             normfactor = []
-            if self.normtochan.isChecked() is True:
+            if self.normtochan.isChecked() is True and self.normtochan_channel.text() != '':
                 xval2norm = float(self.normtochan_channel.text())
                 xvals = self.datadic[0]["xvals"]*float(self.xmult.text())
                 x_id = np.max(np.where(xvals <= xval2norm))
@@ -1248,6 +1249,64 @@ class Xplot_GUI(QWidget):
         imagename = QFileDialog.getSaveFileName(self, caption="Save PNG in:", filter="PNG (*.png)")[0]
         if len(imagename) != 0:
             self.mpl.canvas.print_figure(imagename, dpi=300)
+
+    def savesettings(self):
+        #make a dict with all parameters to then dump to file with json
+        data = {'file': self.filedir.text(),
+                'title': self.graphtitle.text(),
+                'xtitle': self.xtitle.text(),
+                'ytitle': self.ytitle.text(),
+                'xlog': self.xlinlog.isChecked(),
+                'ylog': self.ylinlog.isChecked(),
+                'xmult': self.xmult.text(),
+                'ymult': self.ymult.text(),
+                'axtype': self.axboxtype_single.isChecked(), #if not single, then should be box...
+                'xkcdtype': self.xkcd.isChecked(),
+                'xmin': self.xmin.text(),
+                'xmax': self.xmax.text(),
+                'ymin': self.ymin.text(),
+                'ymax': self.ymax.text(),
+                'energy_conversion': self.Eplot.isChecked(),
+                'zero': self.Eplot_zero.text(),
+                'gain': self.Eplot_gain.text(),
+                'titlefont': self.fontsize_maintitle.text(),
+                'axtitlefont': self.fontsize_axtitle.text(),
+                'axlabelfont': self.fontsize_axlbl.text(),
+                'legendfont': self.fontsize_legend.text(),
+                'annotationfont': self.fontsize_annot.text(),
+                'curvethickness': self.curve_thick.text(),
+                'curvesequence': None, #TODO
+                'curvelabels': None,
+                'curvecolours': None,
+                'curvelinetypes': None,
+                'curvemarkers': None,
+                'verticaloffset': self.vert_offset.text(),
+                'setxticks': self.setXticks.isChecked(),
+                'xtickvalues': self.setXticks_values.text(),
+                'setyticks': self.setYticks.isChecked(),
+                'ytickvalues': self.setYticks_values.text(),
+                'legendposition': self.legendpos.text(),
+                'legendbbox': self.legend_bbox.isChecked(),
+                'datasmooth': self.smooth.isChecked(),
+                'smoothparam': [self.savgol_window.text(), self.savgol_poly.text()],
+                'plotderivative': self.deriv.isChecked(),
+                'interpolate': self.interpolate.isChecked(),
+                'interpolateorder': self.interpolate_order.text(),
+                'showerrorflags': self.errorbar_flag.isChecked(),
+                'errortype': self.errorbar_bars.isChecked(), #if not bars, then is area
+                'errorsize': self.errorbar_nsigma.text(),
+                'normdata': self.normtochan.isChecked(),
+                'normchannel': self.normtochan_channel.text(),
+                'omitxrange': self.omitXrange.isChecked(),
+                'omittedxrange': self.omitXrange_range.text(),
+                'peakid': [self.peakid_all.isChecked(), self.peakid_main.isChecked(), self.peakid_none.isChecked()],
+                'peakidarrows': self.peakid_arrows.isChecked(),
+                'showKLlines': [self.show_Klines.isChecked(), self.show_Llines.isChecked()]
+            }
+        
+    
+    def loadsettings(self):
+        pass
         
     def browse_app(self):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
