@@ -20,7 +20,7 @@ from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QGridLayout
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, QButtonGroup, \
-        QLineEdit, QTabWidget, QFileDialog, QRadioButton, QTableWidgetItem, \
+        QLineEdit, QTabWidget, QFileDialog, QRadioButton, QTableWidgetItem, QFrame, \
             QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView
 
 
@@ -590,7 +590,7 @@ class Xplot_GUI(QWidget):
         tab_labels_layout.addSpacing(20)
         axis_Eplot_layout = QHBoxLayout()
         self.Eplot = QCheckBox("Convert X-axis to Energy or AtomicSymbol")
-        self.Eplot.setToolTip ("Display SPE data with Energy X-axis or display scatter plot data with Atomic Symbol names.\n If zero is not 0 the X-axis is replaced by LabelNames, if gain is not zero the top X-axis is replaced by LabelNames.")
+        self.Eplot.setToolTip ("Display SPE data with Energy X-axis or display scatter plot data with Atomic Symbol names.\n If zero is not 0 the X-axis is replaced by LabelNames, if gain is not 0 the top X-axis is replaced by LabelNames.")
         axis_Eplot_layout.addWidget(self.Eplot)
         tab_labels_layout.addLayout(axis_Eplot_layout)
         axis_ZeroGain_layout = QHBoxLayout()
@@ -659,6 +659,27 @@ class Xplot_GUI(QWidget):
         self.vert_offset.setMaximumWidth(30)
         custom_curve_layout.addWidget(self.vert_offset)
         tab_custom_layout.addLayout(custom_curve_layout)
+        tab_custom_layout.addSpacing(10)
+        set_Xticks_layout = QHBoxLayout()
+        self.setXticks = QCheckBox("Set X-ticks:")
+        self.setXticks.setToolTip("Define Xticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Xticks_layout.addWidget(self.setXticks)
+        self.setXticks_values = QLineEdit("None")
+        self.setXticks_values.setMaximumWidth(250)
+        self.setXticks_values.setToolTip("Define Xticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Xticks_layout.addWidget(self.setXticks_values)
+        set_Xticks_layout.addStretch()
+        tab_custom_layout.addLayout(set_Xticks_layout)
+        set_Yticks_layout = QHBoxLayout()
+        self.setYticks = QCheckBox("Set Y-ticks:")
+        self.setYticks.setToolTip("Define Yticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Yticks_layout.addWidget(self.setYticks)
+        self.setYticks_values = QLineEdit("None")
+        self.setYticks_values.setMaximumWidth(250)
+        self.setYticks_values.setToolTip("Define Yticks as [[positions], [labels], rotation].\n E.g. [[57,58,59], ['La', 'Ce', 'Pr'], 90]")
+        set_Yticks_layout.addWidget(self.setYticks_values)
+        set_Yticks_layout.addStretch()
+        tab_custom_layout.addLayout(set_Yticks_layout)
         tab_custom_layout.addSpacing(10)
         custom_positions_layout = QHBoxLayout()
         custom_positions_layout.addWidget(QLabel('Legend position:'))
@@ -736,6 +757,17 @@ class Xplot_GUI(QWidget):
         normtochan_layout.addStretch()
         tab_options_layout.addLayout(normtochan_layout)        
         tab_options_layout.addSpacing(10)
+        omitXrange_layout = QHBoxLayout()
+        self.omitXrange = QCheckBox("Omit X-range:")
+        self.omitXrange.setToolTip ("Set a range for which X values should be removed from plotting. E.g. 0-20;28;56-70")
+        omitXrange_layout.addWidget(self.omitXrange)
+        self.omitXrange_range = QLineEdit("")
+        self.omitXrange_range.setToolTip ("Set a range for which X values should be removed from plotting. E.g. 0-20;28;56-70")
+        self.omitXrange_range.setMaximumWidth(80)
+        omitXrange_layout.addWidget(self.omitXrange_range)
+        omitXrange_layout.addStretch()
+        tab_options_layout.addLayout(omitXrange_layout)
+        tab_options_layout.addSpacing(10)
         options_peakid_layout = QHBoxLayout()
         options_peakid_layout.addWidget(QLabel("Peak ID:"))
         self.button_group = QButtonGroup()
@@ -754,6 +786,19 @@ class Xplot_GUI(QWidget):
         options_peakid_layout.addWidget(self.peakid_arrows)
         options_peakid_layout.addStretch()
         tab_options_layout.addLayout(options_peakid_layout)
+        self.scatterframe = QFrame()
+        KLline_layout = QHBoxLayout()
+        KLline_lbl = QLabel("Display ")
+        self.show_Klines = QCheckBox("K-")
+        self.show_Llines = QCheckBox("L-line data")
+        self.show_Klines.setChecked(True)
+        self.show_Llines.setChecked(True)
+        KLline_layout.addWidget(KLline_lbl)
+        KLline_layout.addWidget(self.show_Klines)
+        KLline_layout.addWidget(self.show_Llines)
+        KLline_layout.addStretch()
+        self.scatterframe.setLayout(KLline_layout)
+        tab_options_layout.addWidget(self.scatterframe)
         tab_options_layout.addStretch()
         self.tab_options.setLayout(tab_options_layout)
         self.menu_tabs.addTab(self.tab_options, "Options")
@@ -785,6 +830,7 @@ class Xplot_GUI(QWidget):
         self.setLayout(layout_main)
         self.setWindowTitle('Xplot GUI')
         self.show()
+        self.scatterframe.hide()
 
         # event handling
         self.browse.clicked.connect(self.browse_app) # browse button
@@ -829,8 +875,18 @@ class Xplot_GUI(QWidget):
         self.normtochan_channel.returnPressed.connect(self.update_plot)
         self.button_group.buttonClicked.connect(self.update_plot)
         self.peakid_arrows.stateChanged.connect(self.update_plot)
+        self.show_Klines.stateChanged.connect(self.update_plot)
+        self.show_Llines.stateChanged.connect(self.update_plot)
+        self.omitXrange.stateChanged.connect(self.update_plot)
+        self.omitXrange_range.returnPressed.connect(self.update_plot)
+        self.setXticks.stateChanged.connect(self.update_plot)
+        self.setXticks_values.returnPressed.connect(self.update_plot)
+        self.setYticks.stateChanged.connect(self.update_plot)
+        self.setYticks_values.returnPressed.connect(self.update_plot)
         self.refresh.clicked.connect(self.update_plot)
         self.savepng.clicked.connect(self.save_png)
+        self.save_settings.clicked.connect(self.savesettings)
+        self.load_settings.clicked.connect(self.loadsettings)
 
 
     def update_plot(self):
@@ -849,7 +905,7 @@ class Xplot_GUI(QWidget):
             if self.ylinlog.isChecked() is True:
                 self.mpl.axes.set_yscale('log')
             normfactor = []
-            if self.normtochan.isChecked() is True:
+            if self.normtochan.isChecked() is True and self.normtochan_channel.text() != '':
                 xval2norm = float(self.normtochan_channel.text())
                 xvals = self.datadic[0]["xvals"]*float(self.xmult.text())
                 x_id = np.max(np.where(xvals <= xval2norm))
@@ -870,8 +926,18 @@ class Xplot_GUI(QWidget):
                 all_lines = []
                 all_ydata = []
                 for index, item in enumerate(self.datadic):
-                    lines = item["lines"]
+                    lines = np.asarray(item["lines"])
                     ydata = item["data"]*float(self.ymult.text())
+                    if self.show_Klines.isChecked() is False:
+                        # remove data points where item["lines"] represents a K line
+                        nonK_id = [i for i,k in enumerate(lines) if "K" not in k.split(" ")[1]]
+                        lines = lines[nonK_id]
+                        ydata = ydata[nonK_id]
+                    if self.show_Llines.isChecked() is False:
+                        # remove data points where item["lines"] represents a K line
+                        nonL_id = [i for i,k in enumerate(lines) if "L" not in k.split(" ")[1]]
+                        lines = lines[nonL_id]
+                        ydata = ydata[nonL_id]
                     if normfactor:
                         ydata = ydata/normfactor[index]
                     for line in lines:
@@ -900,15 +966,70 @@ class Xplot_GUI(QWidget):
             curves = []
             for index, item in enumerate(self.datadic):
                 # Apply vertical offset to all curves, taking into account a coordinate transform as y-axis could be log scaled
-                xdata = item["xvals"]*float(self.xmult.text())
-                ydata = item["data"]*float(self.ymult.text())
+                lines = np.asarray([line for line in item["lines"]])
+                xdata = np.asarray(item["xvals"]*float(self.xmult.text()))
+                ydata = np.asarray(item["data"]*float(self.ymult.text()))
                 if normfactor:
                     ydata = ydata/normfactor[index]
                 if item["error"] is None:
                     yerr = None
                 else:
-                    yerr = item["error"]*0.
+                    yerr = np.asarray(item["error"]*0.)
                     np.divide(item["error"],item["data"], out=yerr, where=item["data"]!=0) #relative error, will convert to absolute again during plotting
+                if self.omitXrange.isChecked() is True:
+                    Xomission = self.omitXrange_range.text()
+                    if ';' in Xomission: #several sections provided, so loop through them
+                        for omit in Xomission.split(';'):
+                            if '-' in omit: #a range provided, so omit values within the range
+                                keep_id = np.where([(xdata < float(omit.split('-')[0])) | (xdata > float(omit.split('-')[1]))])[1]
+                                ydata = ydata[keep_id]
+                                xdata = xdata[keep_id]
+                                if self.datadic[0]["datatype"] == "scatter":
+                                    lines = lines[keep_id]
+                                if yerr is not None:
+                                    yerr = yerr[keep_id]
+                            else: #only a single value provided, only omit this one
+                                keep_id = np.where(xdata != float(omit))
+                                ydata = ydata[keep_id]
+                                xdata = xdata[keep_id]
+                                if self.datadic[0]["datatype"] == "scatter":
+                                    lines = lines[keep_id]
+                                if yerr is not None:
+                                    yerr = yerr[keep_id]
+                    elif Xomission != '':
+                        if '-' in Xomission: #a range provided, so omit values within the range
+                            keep_id = np.where([(xdata < float(Xomission.split('-')[0])) | (xdata > float(Xomission.split('-')[1]))])[1]
+                            ydata = ydata[keep_id]
+                            xdata = xdata[keep_id]
+                            if self.datadic[0]["datatype"] == "scatter":
+                                lines = lines[keep_id]
+                            if yerr is not None:
+                                yerr = yerr[keep_id]
+                        else: #only a single value provided, only omit this one
+                            keep_id = np.where(xdata != float(Xomission))
+                            ydata = ydata[keep_id]
+                            xdata = xdata[keep_id]
+                            if self.datadic[0]["datatype"] == "scatter":
+                                lines = lines[keep_id]
+                            if yerr is not None:
+                                yerr = yerr[keep_id]
+                if self.datadic[0]["datatype"] == "scatter":
+                    if self.show_Klines.isChecked() is False:
+                        # remove data points where item["lines"] represents a K line
+                        nonK_id = [i for i,k in enumerate(lines) if "K" not in k.split(" ")[1]]
+                        lines = lines[nonK_id]
+                        xdata = xdata[nonK_id]
+                        ydata = ydata[nonK_id]
+                        if yerr is not None:
+                            yerr = yerr[nonK_id]
+                    if self.show_Llines.isChecked() is False:
+                        # remove data points where item["lines"] represents a L line
+                        nonL_id = [i for i,k in enumerate(lines) if "L" not in k.split(" ")[1]]
+                        lines = lines[nonL_id]
+                        xdata = xdata[nonL_id]
+                        ydata = ydata[nonL_id]
+                        if yerr is not None:
+                            yerr = yerr[nonL_id]
                 if self.smooth.isChecked() is True:
                     if 'savgol_filter' not in dir():
                         from scipy.signal import savgol_filter
@@ -925,15 +1046,34 @@ class Xplot_GUI(QWidget):
                                                  linestyle=item["plotline"], marker=item["plotmark"], color=item["colour"]))
                 if index == 0:
                     self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+                    if self.setXticks.isChecked() is True:
+                        if self.setXticks_values.text() == "" or self.setXticks_values.text().lower() == "none":
+                            self.mpl.axes.set_xticks([])
+                        else:
+                            xtick_list = eval(self.setXticks_values.text())
+                            if len(xtick_list) >= 3:
+                                rotation = xtick_list[2]
+                            else:
+                                rotation = 0
+                            self.mpl.axes.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                    if self.setYticks.isChecked() is True:
+                        if self.setYticks_values.text() == "" or self.setYticks_values.text().lower() == "none":
+                            self.mpl.axes.set_yticks([])
+                            self.mpl.axes.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+                        else:
+                            ytick_list = eval(self.setYticks_values.text())
+                            if len(ytick_list) >= 3:
+                                rotation = ytick_list[2]
+                            else:
+                                rotation = 0
+                            self.mpl.axes.set_yticks(ytick_list[0], labels=ytick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
                     if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
                         self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
                         if float(self.Eplot_gain.text()) == 1:
                             secaxx = self.mpl.axes.secondary_xaxis('top')
-                            secaxx.set_xticks(new_z)
-                            secaxx.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                            secaxx.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                         if float(self.Eplot_zero.text()) == 1:
-                            self.mpl.axes.set_xticks(new_z)
-                            self.mpl.axes.set_xticklabels(new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                            self.mpl.axes.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                 # display error values
                 if self.errorbar_flag.isChecked() is True and yerr is not None:
                     if self.errorbar_bars.isChecked() is True:
@@ -948,7 +1088,7 @@ class Xplot_GUI(QWidget):
                     polyfactor = np.around(float(self.interpolate_order.text())).astype(int)
                     try:
                         if self.ylinlog.isChecked() is True:
-                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor)
+                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor) #TODO: need to prune 0 values! RuntimeWarning: divide by zero encountered in log10
                         else:
                             fit_par = np.polyfit(xdata, ydata, polyfactor)
                         func = np.poly1d(fit_par)
@@ -1109,6 +1249,64 @@ class Xplot_GUI(QWidget):
         imagename = QFileDialog.getSaveFileName(self, caption="Save PNG in:", filter="PNG (*.png)")[0]
         if len(imagename) != 0:
             self.mpl.canvas.print_figure(imagename, dpi=300)
+
+    def savesettings(self):
+        #make a dict with all parameters to then dump to file with json
+        data = {'file': self.filedir.text(),
+                'title': self.graphtitle.text(),
+                'xtitle': self.xtitle.text(),
+                'ytitle': self.ytitle.text(),
+                'xlog': self.xlinlog.isChecked(),
+                'ylog': self.ylinlog.isChecked(),
+                'xmult': self.xmult.text(),
+                'ymult': self.ymult.text(),
+                'axtype': self.axboxtype_single.isChecked(), #if not single, then should be box...
+                'xkcdtype': self.xkcd.isChecked(),
+                'xmin': self.xmin.text(),
+                'xmax': self.xmax.text(),
+                'ymin': self.ymin.text(),
+                'ymax': self.ymax.text(),
+                'energy_conversion': self.Eplot.isChecked(),
+                'zero': self.Eplot_zero.text(),
+                'gain': self.Eplot_gain.text(),
+                'titlefont': self.fontsize_maintitle.text(),
+                'axtitlefont': self.fontsize_axtitle.text(),
+                'axlabelfont': self.fontsize_axlbl.text(),
+                'legendfont': self.fontsize_legend.text(),
+                'annotationfont': self.fontsize_annot.text(),
+                'curvethickness': self.curve_thick.text(),
+                'curvesequence': None, #TODO
+                'curvelabels': None,
+                'curvecolours': None,
+                'curvelinetypes': None,
+                'curvemarkers': None,
+                'verticaloffset': self.vert_offset.text(),
+                'setxticks': self.setXticks.isChecked(),
+                'xtickvalues': self.setXticks_values.text(),
+                'setyticks': self.setYticks.isChecked(),
+                'ytickvalues': self.setYticks_values.text(),
+                'legendposition': self.legendpos.text(),
+                'legendbbox': self.legend_bbox.isChecked(),
+                'datasmooth': self.smooth.isChecked(),
+                'smoothparam': [self.savgol_window.text(), self.savgol_poly.text()],
+                'plotderivative': self.deriv.isChecked(),
+                'interpolate': self.interpolate.isChecked(),
+                'interpolateorder': self.interpolate_order.text(),
+                'showerrorflags': self.errorbar_flag.isChecked(),
+                'errortype': self.errorbar_bars.isChecked(), #if not bars, then is area
+                'errorsize': self.errorbar_nsigma.text(),
+                'normdata': self.normtochan.isChecked(),
+                'normchannel': self.normtochan_channel.text(),
+                'omitxrange': self.omitXrange.isChecked(),
+                'omittedxrange': self.omitXrange_range.text(),
+                'peakid': [self.peakid_all.isChecked(), self.peakid_main.isChecked(), self.peakid_none.isChecked()],
+                'peakidarrows': self.peakid_arrows.isChecked(),
+                'showKLlines': [self.show_Klines.isChecked(), self.show_Llines.isChecked()]
+            }
+        
+    
+    def loadsettings(self):
+        pass
         
     def browse_app(self):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
@@ -1183,6 +1381,7 @@ class Xplot_GUI(QWidget):
             self.ymax.setText("{:.3}".format(1.5*np.max([item["data"] for item in self.datadic])))
             self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
             if self.datadic[0]['datatype'] == 'spe':
+                self.scatterframe.hide()
                 self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
                 self.ytitle.setText("Intensity [Counts]")
                 if self.datadic[0]['cfg'] is None:
@@ -1193,12 +1392,15 @@ class Xplot_GUI(QWidget):
                     self.Eplot_gain.setText("{:.3}".format(self.datadic[0]["cfg"][1]))
                     self.xtitle.setText("Energy [keV]")
             elif 'quant' in self.datadic[0]['h5dir']:
+                self.scatterframe.show()
                 self.xtitle.setText("Atomic Number [Z]")
                 self.ytitle.setText("Concentration [ppm]")
             elif 'elyield' in self.datadic[0]['h5dir']:
+                self.scatterframe.show()
                 self.xtitle.setText("Atomic Number [Z]")
                 self.ytitle.setText("Elemental yield [(ct/s)/(ug/cm²)]")
             elif 'detlim' in self.datadic[0]['h5dir']:
+                self.scatterframe.show()
                 self.xtitle.setText("Atomic Number [Z]")
                 self.ytitle.setText("Detection Limit [ppm]")
             self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"].astype(float)) for item in self.datadic])))
