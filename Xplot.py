@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import os
 import itertools
+import json
 
 import matplotlib
 matplotlib.use('Qt5Agg') #Render to Pyside/PyQt canvas
@@ -236,7 +237,6 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
     if cfg is not None and plotelnames is True:
         # x axis of plot is in Energy (keV)
         # determine peak energy values (Rayl energy = cfg[2])
-        #TODO account for occurences of both Ka and Kb...
         from PyMca5.PyMcaPhysics.xrf import Elements
         for n in names:
             if n != 'Rayl' and n != 'Compt':
@@ -1048,14 +1048,37 @@ class Xplot_GUI(QWidget):
                     self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
                     if self.setXticks.isChecked() is True:
                         if self.setXticks_values.text() == "" or self.setXticks_values.text().lower() == "none":
-                            self.mpl.axes.set_xticks([])
+                            if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
+                                self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
+                                if float(self.Eplot_gain.text()) == 1:
+                                    secaxx = self.mpl.axes.secondary_xaxis('top')
+                                    secaxx.set_xticks([])
+                                if float(self.Eplot_zero.text()) == 1:
+                                    self.mpl.axes.set_xticks([])
+                            else:
+                                self.mpl.axes.set_xticks([])
                         else:
                             xtick_list = eval(self.setXticks_values.text())
                             if len(xtick_list) >= 3:
                                 rotation = xtick_list[2]
                             else:
                                 rotation = 0
-                            self.mpl.axes.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                            if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
+                                self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
+                                if float(self.Eplot_gain.text()) == 1:
+                                    secaxx = self.mpl.axes.secondary_xaxis('top')
+                                    secaxx.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                                if float(self.Eplot_zero.text()) == 1:
+                                    self.mpl.axes.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                            else:
+                                self.mpl.axes.set_xticks(xtick_list[0], labels=xtick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
+                    elif self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
+                        self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
+                        if float(self.Eplot_gain.text()) == 1:
+                            secaxx = self.mpl.axes.secondary_xaxis('top')
+                            secaxx.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                        if float(self.Eplot_zero.text()) == 1:
+                            self.mpl.axes.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
                     if self.setYticks.isChecked() is True:
                         if self.setYticks_values.text() == "" or self.setYticks_values.text().lower() == "none":
                             self.mpl.axes.set_yticks([])
@@ -1067,13 +1090,7 @@ class Xplot_GUI(QWidget):
                             else:
                                 rotation = 0
                             self.mpl.axes.set_yticks(ytick_list[0], labels=ytick_list[1], fontsize=np.around(float(self.fontsize_annot.text())).astype(int), rotation=rotation)
-                    if self.Eplot.isChecked() is True and self.datadic[0]["datatype"] == "scatter":
-                        self.mpl.axes.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(1))
-                        if float(self.Eplot_gain.text()) == 1:
-                            secaxx = self.mpl.axes.secondary_xaxis('top')
-                            secaxx.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
-                        if float(self.Eplot_zero.text()) == 1:
-                            self.mpl.axes.set_xticks(new_z, labels=new_labels, fontsize=np.around(float(self.fontsize_annot.text())).astype(int))
+                    
                 # display error values
                 if self.errorbar_flag.isChecked() is True and yerr is not None:
                     if self.errorbar_bars.isChecked() is True:
@@ -1088,7 +1105,9 @@ class Xplot_GUI(QWidget):
                     polyfactor = np.around(float(self.interpolate_order.text())).astype(int)
                     try:
                         if self.ylinlog.isChecked() is True:
-                            fit_par = np.polyfit(xdata, np.log10(ydata), polyfactor) #TODO: need to prune 0 values! RuntimeWarning: divide by zero encountered in log10
+                            xtemp = xdata[np.nonzero(ydata)]
+                            ytemp = xdata[np.nonzero(ydata)]
+                            fit_par = np.polyfit(xtemp, np.log10(ytemp), polyfactor)
                         else:
                             fit_par = np.polyfit(xdata, ydata, polyfactor)
                         func = np.poly1d(fit_par)
@@ -1251,6 +1270,15 @@ class Xplot_GUI(QWidget):
             self.mpl.canvas.print_figure(imagename, dpi=300)
 
     def savesettings(self):
+        # figure out the current curve sequence from the file list
+        filelist = self.filedir.text()[1:-1].split('","')    
+        sequence = []
+        for item in self.datadic:
+            if item['h5dir'] is not None:
+                sequence.append(item["filename"]+":"+item["h5dir"])
+            else:
+                sequence.append(item["filename"])
+        
         #make a dict with all parameters to then dump to file with json
         data = {'file': self.filedir.text(),
                 'title': self.graphtitle.text(),
@@ -1275,11 +1303,11 @@ class Xplot_GUI(QWidget):
                 'legendfont': self.fontsize_legend.text(),
                 'annotationfont': self.fontsize_annot.text(),
                 'curvethickness': self.curve_thick.text(),
-                'curvesequence': None, #TODO
-                'curvelabels': None,
-                'curvecolours': None,
-                'curvelinetypes': None,
-                'curvemarkers': None,
+                'curvesequence': [filelist.index(item) for item in sequence],
+                'curvelabels': [item["label"] for item in self.datadic],
+                'curvecolours': [item["colour"] for item in self.datadic],
+                'curvelinetypes': [item["plotline"] for item in self.datadic],
+                'curvemarkers': [item["plotmark"] for item in self.datadic],
                 'verticaloffset': self.vert_offset.text(),
                 'setxticks': self.setXticks.isChecked(),
                 'xtickvalues': self.setXticks_values.text(),
@@ -1304,9 +1332,90 @@ class Xplot_GUI(QWidget):
                 'showKLlines': [self.show_Klines.isChecked(), self.show_Llines.isChecked()]
             }
         
+        savefile = QFileDialog.getSaveFileName(self, caption="Save Xplot settings file:", filter="XPL (*.xpl)")[0]
+        with open(savefile, "w") as f:
+            json.dump(data, f)  # encode dict into JSON
+        
     
     def loadsettings(self):
-        pass
+        loadfile = QFileDialog.getOpenFileName(self, caption="Open Xplot settings file:", filter="XPL (*.xpl)")[0]
+        with open(loadfile, 'r') as f:
+            data = json.load(f)
+        
+        # first set the file paths and read the files
+        self.filedir.setText(data["file"])
+        self.read_files(update=False)
+        # now set all other options
+        self.graphtitle.setText(data['title'])
+        self.xtitle.setText(data['xtitle'])
+        self.ytitle.setText(data['ytitle'])
+        self.xlinlog.setChecked(data['xlog'])
+        self.ylinlog.setChecked(data['ylog'])
+        self.xmult.setText(data['xmult'])
+        self.ymult.setText(data['ymult'])
+        if data['axtype'] is True:
+            self.axboxtype_single.setChecked(True)
+            self.axboxtype_box.setChecked(False)
+        else:
+            self.axboxtype_single.setChecked(False)
+            self.axboxtype_box.setChecked(True)
+        self.xkcd.setChecked(data['xkcdtype'])
+        self.xmin.setText(data['xmin'])
+        self.xmax.setText(data['xmax'])
+        self.ymin.setText(data['ymin'])
+        self.ymax.setText(data['ymax'])
+        self.Eplot.setChecked(data['energy_conversion'])
+        self.Eplot_zero.setText(data['zero'])
+        self.Eplot_gain.setText(data['gain'])
+        self.fontsize_maintitle.setText(data['titlefont'])
+        self.fontsize_axtitle.setText(data['axtitlefont'])
+        self.fontsize_axlbl.setText(data['axlabelfont'])
+        self.fontsize_legend.setText(data['legendfont'])
+        self.fontsize_annot.setText(data['annotationfont'])
+        self.curve_thick.setText(data['curvethickness'])
+        self.vert_offset.setText(data['verticaloffset'])
+        self.setXticks.setChecked(data['setxticks'])
+        self.setXticks_values.setText(data['xtickvalues'])
+        self.setYticks.setChecked(data['setyticks'])
+        self.setYticks_values.setText(data['ytickvalues'])
+        self.legendpos.setText(data['legendposition'])
+        self.legend_bbox.setChecked(data['legendbbox'])
+        self.smooth.setChecked(data['datasmooth'])
+        self.savgol_window.setText(data['smoothparam'][0])
+        self.savgol_poly.setText(data['smoothparam'][1])
+        self.deriv.setChecked(data['plotderivative'])
+        self.interpolate.setChecked(data['interpolate'])
+        self.interpolate_order.setText(data['interpolateorder'])
+        self.errorbar_flag.setChecked(data['showerrorflags'])
+        if data['errortype'] is True:
+            self.errorbar_bars.setChecked(True)
+            self.errorbar_area.setChecked(False)
+        else:
+            self.errorbar_bars.setChecked(False)
+            self.errorbar_area.setChecked(True)
+        self.errorbar_nsigma.setText(data['errorsize'])
+        self.normtochan.setChecked(data['normdata'])
+        self.normtochan_channel.setText(data['normchannel'])
+        self.omitXrange.setChecked(data['omitxrange'])
+        self.omitXrange_range.setText(data['omittedxrange'])
+        self.peakid_all.setChecked(data['peakid'][0])
+        self.peakid_main.setChecked(data['peakid'][1])
+        self.peakid_none.setChecked(data['peakid'][2])
+        self.peakid_arrows.setChecked(data['peakidarrows'])
+        self.show_Klines.setChecked(data['showKLlines'][0])
+        self.show_Llines.setChecked(data['showKLlines'][1])
+        temp = []
+        for position, index in enumerate(data['curvesequence']):
+            temp.append(self.datadic[index])
+            temp[-1]["label"] = data['curvelabels'][position]
+            temp[-1]["colour"] = data['curvecolours'][position]
+            temp[-1]["plotline"] = data['curvelinetypes'][position]
+            temp[-1]["plotmark"] = data['curvemarkers'][position]
+        self.datadic = temp
+                
+        self.update_plot()
+        
+        
         
     def browse_app(self):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
@@ -1325,89 +1434,91 @@ class Xplot_GUI(QWidget):
                     self.filedir.setText('"'+'","'.join([pair for pair in map(':'.join, list(itertools.product(self.filenames, self.subdirs)))])+'"')
             self.read_files()
 
-    def read_files(self):
-            # read the data from all files/directories
-            files = self.filedir.text()[1:-1].split('","')
-            self.datadic = []
-            from matplotlib.lines import Line2D
-            marks = [mark for mark in Line2D.markers.keys()][2:18]
-            for index, file in enumerate(files):
-                h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
-                h5dir = file.split(':')[-1]
-                # check datatype based on h5dir
-                if 'spe' in h5dir:
-                    datatype = 'spe'
-                elif 'quant' in h5dir:
-                    datatype = 'scatter'
-                elif 'elyield' in h5dir:
-                    datatype = 'scatter'
-                elif 'detlim' in h5dir:
-                    datatype = 'scatter'
-                else:
-                    datatype = 'spe'
-                data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
+    def read_files(self, update=True):
+        #TODO: on file read-in give directory selection, with key 'use same for all subsequent files'. If not selected, give selection window for each file.
+        # read the data from all files/directories
+        files = self.filedir.text()[1:-1].split('","')
+        self.datadic = []
+        from matplotlib.lines import Line2D
+        marks = [mark for mark in Line2D.markers.keys()][2:18]
+        for index, file in enumerate(files):
+            h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
+            h5dir = file.split(':')[-1]
+            # check datatype based on h5dir
+            if 'spe' in h5dir:
+                datatype = 'spe'
+            elif 'quant' in h5dir:
+                datatype = 'scatter'
+            elif 'elyield' in h5dir:
+                datatype = 'scatter'
+            elif 'detlim' in h5dir:
+                datatype = 'scatter'
+            else:
+                datatype = 'spe'
+            data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
 
-                linetype = '-'
-                marker = ''
-                if datatype == 'spe' and config is not None:
-                    xvals = np.arange(len(data)).astype(float)*config[1]+config[0]
-                elif datatype == 'spe' and config is None:
-                    xvals = np.arange(len(data)).astype(float)
-                elif datatype == 'scatter': # all scatter types need x-axis as Z based on lines
-                    from PyMca5.PyMcaPhysics.xrf import Elements
-                    xvals = np.asarray([Elements.getz(label.split(" ")[0]) for label in lines])
-                    linetype = ''
-                    marker = marks[index%len(marks)]
-                else:
-                    xvals = np.arange(len(data)).astype(float)
-                 
-                if error is None and datatype == 'spe':
-                    error = np.sqrt(data)
-                self.datadic.append({'filename' : h5file,
-                                     'h5dir' : h5dir,
-                                     'label' : os.path.basename(h5file)+':'+h5dir,
-                                     'colour' : None,
-                                     'plotline' : linetype,
-                                     'plotmark' : marker,
-                                     'data' : data,
-                                     'error' : error,
-                                     'xvals' : xvals,
-                                     'datatype' : datatype,
-                                     'lines' : lines,
-                                     'cfg' : config
-                                     })
+            linetype = '-'
+            marker = ''
+            if datatype == 'spe' and config is not None:
+                xvals = np.arange(len(data)).astype(float)*config[1]+config[0]
+            elif datatype == 'spe' and config is None:
+                xvals = np.arange(len(data)).astype(float)
+            elif datatype == 'scatter': # all scatter types need x-axis as Z based on lines
+                from PyMca5.PyMcaPhysics.xrf import Elements
+                xvals = np.asarray([Elements.getz(label.split(" ")[0]) for label in lines])
+                linetype = ''
+                marker = marks[index%len(marks)]
+            else:
+                xvals = np.arange(len(data)).astype(float)
+             
+            if error is None and datatype == 'spe':
+                error = np.sqrt(data)
+            self.datadic.append({'filename' : h5file,
+                                 'h5dir' : h5dir,
+                                 'label' : os.path.basename(h5file)+':'+h5dir,
+                                 'colour' : None,
+                                 'plotline' : linetype,
+                                 'plotmark' : marker,
+                                 'data' : data,
+                                 'error' : error,
+                                 'xvals' : xvals,
+                                 'datatype' : datatype,
+                                 'lines' : lines,
+                                 'cfg' : config
+                                 })
 
-            # set GUI fields to the appropriate values
-            self.ymax.setText("{:.3}".format(1.5*np.max([item["data"] for item in self.datadic])))
-            self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
-            if self.datadic[0]['datatype'] == 'spe':
-                self.scatterframe.hide()
-                self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
-                self.ytitle.setText("Intensity [Counts]")
-                if self.datadic[0]['cfg'] is None:
-                    self.xtitle.setText("Detector Channel Number")
-                else:
-                    self.Eplot.setChecked(True)
-                    self.Eplot_zero.setText("{:.3}".format(self.datadic[0]["cfg"][0]))
-                    self.Eplot_gain.setText("{:.3}".format(self.datadic[0]["cfg"][1]))
-                    self.xtitle.setText("Energy [keV]")
-            elif 'quant' in self.datadic[0]['h5dir']:
-                self.scatterframe.show()
-                self.xtitle.setText("Atomic Number [Z]")
-                self.ytitle.setText("Concentration [ppm]")
-            elif 'elyield' in self.datadic[0]['h5dir']:
-                self.scatterframe.show()
-                self.xtitle.setText("Atomic Number [Z]")
-                self.ytitle.setText("Elemental yield [(ct/s)/(ug/cm²)]")
-            elif 'detlim' in self.datadic[0]['h5dir']:
-                self.scatterframe.show()
-                self.xtitle.setText("Atomic Number [Z]")
-                self.ytitle.setText("Detection Limit [ppm]")
-            self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"].astype(float)) for item in self.datadic])))
-            self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"].astype(float)) for item in self.datadic])))
-        
+        # set GUI fields to the appropriate values
+        self.ymax.setText("{:.3}".format(1.5*np.max([item["data"] for item in self.datadic])))
+        self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
+        if self.datadic[0]['datatype'] == 'spe':
+            self.scatterframe.hide()
+            self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
+            self.ytitle.setText("Intensity [Counts]")
+            if self.datadic[0]['cfg'] is None:
+                self.xtitle.setText("Detector Channel Number")
+            else:
+                self.Eplot.setChecked(True)
+                self.Eplot_zero.setText("{:.3}".format(self.datadic[0]["cfg"][0]))
+                self.Eplot_gain.setText("{:.3}".format(self.datadic[0]["cfg"][1]))
+                self.xtitle.setText("Energy [keV]")
+        elif 'quant' in self.datadic[0]['h5dir']:
+            self.scatterframe.show()
+            self.xtitle.setText("Atomic Number [Z]")
+            self.ytitle.setText("Concentration [ppm]")
+        elif 'elyield' in self.datadic[0]['h5dir']:
+            self.scatterframe.show()
+            self.xtitle.setText("Atomic Number [Z]")
+            self.ytitle.setText("Elemental yield [(ct/s)/(ug/cm²)]")
+        elif 'detlim' in self.datadic[0]['h5dir']:
+            self.scatterframe.show()
+            self.xtitle.setText("Atomic Number [Z]")
+            self.ytitle.setText("Detection Limit [ppm]")
+        self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"].astype(float)) for item in self.datadic])))
+        self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"].astype(float)) for item in self.datadic])))
+    
 
-            # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
+        # now adjust plot window (if new file or dir chosen, the fit results should clear and only self.rawspe is displayed)
+        if update is True:
             self.update_plot()
             
     def ctegain_invert(self):
