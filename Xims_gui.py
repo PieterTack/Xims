@@ -113,7 +113,7 @@ class El_sel_window(QDialog):
         for i in range(0, len(self.el_array)): 
             self.checkbox = QCheckBox(self.el_array[i])
             self.opt_layout.addWidget(self.checkbox, row, col)
-            if(self.el_array[i] in self.el_selection):
+            if(i in self.el_selection):
                 self.checkbox.setChecked(True)
             col += 1
             if(col == 3):
@@ -125,7 +125,7 @@ class El_sel_window(QDialog):
         for i in range(self.opt_layout.count()):
             self.current_box = self.opt_layout.itemAt(i)
             if self.current_box.widget().isChecked() :
-                self.el_selection.append(self.el_array[i])
+                self.el_selection.append(i)
         # close spawned window and return selected elements...
         self.hide()
         super().accept()
@@ -950,7 +950,7 @@ class Plotims(QMainWindow):
             self.npix_y.setText(str(ims_dim[0]))
             self.nelem.setText(str(ims_dim[2]))
             self.element_array = self.ims_data.names
-            self.el_selection = self.ims_data.names
+            self.el_selection = np.arange(len(self.ims_data.names))
             # by default select all elements to plot at start
             self.el_sel_all.setChecked(True)
             # update elements of interest list in CB cutoff tab
@@ -1046,7 +1046,7 @@ class Plotims(QMainWindow):
             if self.new_window.exec_() == QDialog.Accepted:
                 self.el_selection = self.new_window.el_selection                
         else:
-            self.el_selection = self.element_array
+            self.el_selection = np.arange(len(self.element_array))
             
     def toggle_binmode(self, state):
         self.tab_binsize.setVisible(not state)
@@ -1459,9 +1459,9 @@ class Plotims(QMainWindow):
                 # obtain min and max for each element, and check if higher than previously registered value
                 for j in range(len(self.el_selection)):
                     # find index of selected element
-                    if self.el_selection[j] in ims.names:
+                    if self.element_array[self.el_selection[j]] in ims.names:
                         for k in range(len(ims.names)):
-                            if ims.names[k] == self.el_selection[j]:
+                            if ims.names[k] == self.element_array[self.el_selection[j]]:
                                 if i == 0:
                                     clim[1,j] = imsdata[:,:,k].max()
                                     clim[0,j] = imsdata[:,:,k].min()
@@ -1647,11 +1647,11 @@ class Plotims(QMainWindow):
             if self.plot_opts_normplot.isChecked():
                 for j in range(len(self.el_selection)):
                     # find index of selected element
-                    if self.el_selection[j] in ims.names:
+                    if self.el_selection[j] in np.arange(len(ims.names)):
                         eoi = -1
                         for k in range(len(ims.names)):
-                            if ims.names[k] == self.el_selection[j]:
-                                eoi = k
+                            if k == self.el_selection[j]:
+                                eoi = self.el_selection[j]
                         if self.plt_opts.clim:
                             clim = self.plt_opts.clim[:,eoi]
                         else: clim = None

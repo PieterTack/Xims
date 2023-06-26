@@ -658,9 +658,9 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
     #   First let's check how many elements are common between el_selection and imsdata.names
     cnt = 0
     for i in range(len(el_selection)):
-        if el_selection[i] in imsdata.names:
+        if el_selection[i] in np.arange(len(imsdata.names)):
             for k in range(len(imsdata.names)):
-                if imsdata.names[k] == el_selection[i]:
+                if k == el_selection[i]:
                     cnt = cnt+1                
     #    Now make empty array, and repeat loop above to fill array appropiately
     datacube = np.zeros((imsdata.data.shape[0], imsdata.data.shape[1], cnt))
@@ -671,9 +671,9 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
         cb_lim = None
     cnt = 0
     for i in range(len(el_selection)):
-        if el_selection[i] in imsdata.names:
+        if el_selection[i] in np.arange(len(imsdata.names)):
             for k in range(len(imsdata.names)):
-                if imsdata.names[k] == el_selection[i]:
+                if k == el_selection[i]:
                     datacube[:,:,cnt] = imsdata.data[:,:,k]
                     names.append(imsdata.names[k])
                     if clim:
