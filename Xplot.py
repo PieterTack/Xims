@@ -1437,6 +1437,9 @@ class Xplot_GUI(QWidget):
                     if new_window.exec_() == QDialog.Accepted:
                         subdirs = new_window.h5dir
                         subdirs4all = new_window.paths4all.isChecked()
+                    else:
+                        subdirs = None
+                        subdirs4all = None
                     if subdirs4all == True:
                         self.filedir.setText('"'+'","'.join([pair for pair in map(':'.join, list(itertools.product(self.filenames, subdirs)))])+'"')
                     else: #not all files have same subdirs to plot, so show next file and make selection etc.
