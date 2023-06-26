@@ -277,10 +277,15 @@ class Poll_h5dir(QDialog):
         layout = QVBoxLayout()
         self.task = QLabel('Select your H5 file directory of choice:')
         layout.addWidget(self.task)
+        current_file = QLabel('   current: '+os.path.basename(h5file))
+        layout.addWidget(current_file)
         self.path_select = QListWidget()
         self.path_select.addItems(self.paths)
         self.path_select.setSelectionMode(QAbstractItemView.ExtendedSelection)
         layout.addWidget(self.path_select)
+        self.paths4all = QCheckBox("Use same path(s) for all following files.")
+        self.paths4all.setChecked(True)
+        layout.addWidget(self.paths4all)
         self.read_but = QPushButton("Read")
         layout.addWidget(self.read_but)
         # show window
@@ -1428,14 +1433,32 @@ class Xplot_GUI(QWidget):
                 elif extension == '.csv':
                     pass #TODO
                 elif extension == '.h5' or extension == '.nxs':
-                    self.new_window = Poll_h5dir(self.filenames[0])
-                    if self.new_window.exec_() == QDialog.Accepted:
-                        self.subdirs = self.new_window.h5dir
-                    self.filedir.setText('"'+'","'.join([pair for pair in map(':'.join, list(itertools.product(self.filenames, self.subdirs)))])+'"')
+                    new_window = Poll_h5dir(self.filenames[0])
+                    if new_window.exec_() == QDialog.Accepted:
+                        subdirs = new_window.h5dir
+                        subdirs4all = new_window.paths4all.isChecked()
+                    if subdirs4all == True:
+                        self.filedir.setText('"'+'","'.join([pair for pair in map(':'.join, list(itertools.product(self.filenames, subdirs)))])+'"')
+                    else: #not all files have same subdirs to plot, so show next file and make selection etc.
+                        filedir_list = [pair for pair in map(':'.join, list(itertools.product([self.filenames[0]], subdirs)))]
+                        for index, file in enumerate(self.filenames):
+                            if index != 0: #skip first file as we already did this
+                                new_window = Poll_h5dir(file)
+                                if new_window.exec_() == QDialog.Accepted:
+                                    subdirs = new_window.h5dir
+                                    subdirs4all = new_window.paths4all.isChecked()
+                                if subdirs4all == True:
+                                    # use this subdir for all following filenames and then leave for loop...
+                                    for item in [pair for pair in map(':'.join, list(itertools.product(self.filenames[index:], subdirs)))]:
+                                        filedir_list.append(item)
+                                    break
+                                else:
+                                    for item in [pair for pair in map(':'.join, list(itertools.product([file], subdirs)))]:
+                                        filedir_list.append(item)
+                        self.filedir.setText('"'+'","'.join(filedir_list)+'"')
             self.read_files()
 
     def read_files(self, update=True):
-        #TODO: on file read-in give directory selection, with key 'use same for all subsequent files'. If not selected, give selection window for each file.
         # read the data from all files/directories
         files = self.filedir.text()[1:-1].split('","')
         self.datadic = []
