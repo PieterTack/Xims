@@ -950,7 +950,7 @@ class Plotims(QMainWindow):
             self.npix_y.setText(str(ims_dim[0]))
             self.nelem.setText(str(ims_dim[2]))
             self.element_array = self.ims_data.names
-            self.el_selection = np.arange(len(self.ims_data.names)) #TODO change code so self.el_selection are indices rather than string names
+            self.el_selection = np.arange(len(self.ims_data.names))
             # by default select all elements to plot at start
             self.el_sel_all.setChecked(True)
             # update elements of interest list in CB cutoff tab
