@@ -867,6 +867,13 @@ class Plotims(QMainWindow):
         filetype_layout.addWidget(self.filetype_bmp)
         self.filetype.setLayout(filetype_layout)
         layout_filetype.addWidget(self.filetype)
+        layout_filetype.addSpacing(10)
+        layout_filetype.addWidget(QLabel("dpi:"))
+        self.save_dpi = QLineEdit("420")
+        self.save_dpi.setValidator(QDoubleValidator(0, 1E6,0))
+        self.save_dpi.setMaximumWidth(50)
+        self.save_dpi.setMinimumWidth(50)
+        layout_filetype.addWidget(self.save_dpi)
         layout_filetype.addStretch()
         layout_main.addLayout(layout_filetype)
         # execute button widgets
@@ -1605,7 +1612,7 @@ class Plotims(QMainWindow):
                     Xims.add_scalebar(rgb1, self.sb_opts.y_pix_size, self.sb_opts.y_scl_size, self.sb_opts.y_scl_text, scale_fontsize=self.sb_opts.fontsize, dir='v')
                 filename = "_rgb_"+red_lbl+green_lbl+blue_lbl+out_ext
                 filename = filename_base+filename.replace(" ","") #remove all white spaces
-                fig.savefig(filename, dpi=420)
+                fig.savefig(filename, dpi=np.round(float(self.save_dpi.text())))
                 plt.close()        
         
 
@@ -1641,7 +1648,7 @@ class Plotims(QMainWindow):
                 filename = "_"+self.plt_opts.ct+"_overview"+addendum+out_ext
                 filename = filename_base+filename.replace(" ","") #remove all white spaces
                 ims.data = imsdata
-                Xims.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename)
+                Xims.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename, dpi=np.round(float(self.save_dpi.text())))
 
             # perform individual image plotting
             if self.plot_opts_normplot.isChecked():
@@ -1658,7 +1665,7 @@ class Plotims(QMainWindow):
                         # perform plotting
                         filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+addendum+out_ext
                         filename = filename_base+filename.replace(" ","") #remove all white spaces
-                        Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
+                        Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename, dpi=np.round(float(self.save_dpi.text())))
 
         # colorbar cutoff image
         if self.plot_opts_cbcut.isChecked():
@@ -1679,7 +1686,7 @@ class Plotims(QMainWindow):
                 clim[1] = float(self.cbcut_max.text())
             filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi]+"_cbcut"+out_ext
             filename = filename_base+filename.replace(" ","") #remove all white spaces
-            Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename)
+            Xims.plot_image(imsdata[:,:,eoi], ims.names[eoi], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename, dpi=np.round(float(self.save_dpi.text())))
             
         # ratio image
         if self.data_opts_ratio.isChecked():
@@ -1704,7 +1711,7 @@ class Plotims(QMainWindow):
                 clim[1] = float(self.ratio_max.text())
             filename = "_"+self.plt_opts.ct+"_"+ims.names[eoi_nom]+'_'+ims.names[eoi_den]+"_ratio"+out_ext
             filename = filename_base+filename.replace(" ","") #remove all white spaces
-            Xims.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename) 
+            Xims.plot_image(ratio, ims.names[eoi_nom]+'/'+ims.names[eoi_den], self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, clim=clim, save=filename, dpi=np.round(float(self.save_dpi.text()))) 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

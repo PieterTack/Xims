@@ -293,7 +293,7 @@ def make_rgb_triangle():
             rotate_triangle[height-j-1,i,:] = triangle[i,j,:]
     return rotate_triangle
 
-def plot_rgb(imsdata, eoi_red, eoi_green, eoi_blue, filename, rmin=None, rmax=None, gmin=None, gmax=None, bmin=None, bmax=None, pix_size=None, scl_size=None, scl_unit=None):
+def plot_rgb(imsdata, eoi_red, eoi_green, eoi_blue, filename, rmin=None, rmax=None, gmin=None, gmax=None, bmin=None, bmax=None, pix_size=None, scl_size=None, scl_unit=None, dpi=420):
     # we expect type of eoi_red/green/blue to be integer indices. If they are string, let's look in imsdata.names for their indices
     if type(eoi_red) is str:
         eoi_red = imsdata.names.index(eoi_red)
@@ -353,7 +353,7 @@ def plot_rgb(imsdata, eoi_red, eoi_green, eoi_blue, filename, rmin=None, rmax=No
     # add scale_bar if requested
     if pix_size is not None and scl_size is not None:
         add_scalebar(rgb1, pix_size, scl_size, str(scl_size)+' '+scl_unit, dir='h')
-    fig.savefig(filename, dpi=420)
+    fig.savefig(filename, dpi=dpi)
     plt.close()  
 
 def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=None, rotate=None):
@@ -394,7 +394,7 @@ def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=Non
             imsdata = np.flip(imsdata, 0)
     return imsdata
 
-def plot_correl(imsdata, imsnames, el_id=None, save=None):
+def plot_correl(imsdata, imsnames, el_id=None, save=None, dpi=420):
     """
     Display correlation plots.
 
@@ -509,7 +509,7 @@ def plot_correl(imsdata, imsnames, el_id=None, save=None):
     plt.tight_layout()
     plt.show()
     if save is not None:
-        plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=420)
+        plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close()        
 
 
@@ -522,7 +522,7 @@ def add_scalebar(target, pix_size, scl_size, scale_text,scale_fontsize=16, dir='
         target.plot([-2,-2], [0,scl_size/pix_size], lw=2, color='black', clip_on=False)
         target.text(-3, scl_size/(2.*pix_size), scale_text, ha='right', va='center', size=scale_fontsize, rotation=90, clip_on=False)
 
-def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=None, clim=None, save=None, subplot=None):
+def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=None, clim=None, save=None, subplot=None, dpi=420):
     # set option for discrete colorbar, only if 10 or less values are plotted
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()+1).astype(int))
@@ -629,7 +629,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
             row_id = row_id+1
     # save the image (and close it)
     if save:
-        plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=420)
+        plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close()        
 
 def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, cb_opts=None, colim_opts=None, save=None):
