@@ -25,6 +25,27 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, QButtonGrou
             QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView
 
 
+def Xplot_rspe(spefile):
+    # extract the spectrum from the SPE file
+    with open(spefile, 'r') as f:
+        lines = f.readlines()
+    
+    data_id = lines.index("$DATA:\n")
+    
+    spectrum = np.asarray([item for sublist in [np.fromstring(line, sep=' ') for line in lines[data_id+2:]] for item in sublist])
+    print(spectrum)
+    return spectrum
+
+def Xplot_rcfg(cfgfile):
+    from PyMca5.PyMca import ConfigDict
+    config = ConfigDict.ConfigDict()
+    config.read(cfgfile)
+    zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+    names = [el+' '+config['peaks'][el] for el in config['peaks']]
+    names.append("Rayl")
+    
+    return zgr, names
+
 def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
     with h5py.File(h5file, 'r') as f:
         spe = np.array(f[channel])
@@ -64,15 +85,9 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
 
     if cfg is not None:
         if os.path.exists(cfg): # we're looking for the energy calibration values...
-            from PyMca5.PyMca import ConfigDict
-            config = ConfigDict.ConfigDict()
-            config.read(cfg)
-            zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+            zgr, _ = Xplot_rcfg(cfg)
         elif os.path.exists(os.path.dirname(h5file)+'/'+os.path.basename(cfg)): #also check if the cfg file happens to be in same folder as h5file...
-            from PyMca5.PyMca import ConfigDict
-            config = ConfigDict.ConfigDict()
-            config.read(os.path.dirname(h5file)+'/'+os.path.basename(cfg))
-            zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
+            zgr, _ = Xplot_rcfg(os.path.dirname(h5file)+'/'+os.path.basename(cfg))
         else:
             zgr = None
     else:
@@ -262,6 +277,37 @@ def plot(data, labels=None, cfg=None, xrange=None, yrange=None, normtochan=None,
 
     plt.savefig(savename)#, bbox_inches='tight', pad_inches=0)
     plt.close() 
+
+class Poll_specfg(QDialog):
+    def __init__(self, spefile, parent=None):
+        super(Poll_specfg, self).__init__(parent)
+        layout = QVBoxLayout()
+        self.task = QLabel('Do you wish to select a config file matching '+spefile+'?')
+        layout.addWidget(self.task)
+        buttons = QHBoxLayout()
+        self.yes_but = QPushButton("Yes")
+        buttons.addWidget(self.yes_but)
+        self.no_but = QPushButton("No")
+        buttons.addWidget(self.no_but)
+        layout.addLayout(buttons)
+        # show window
+        self.setLayout(layout)
+        self.show()
+        # handle events
+        self.yes_but.clicked.connect(self.read_cfgpath)
+        self.no_but.clicked.connect(self.abort)
+    
+    def abort(self):
+        self.cfgfile = None
+        # close spawned window and return selected elements...
+        self.hide()
+        
+    def read_cfgpath(self):
+        self.cfgfile = QFileDialog.getOpenFileName(self, caption="Open config file", filter="CFG (*.cfg)")[0]
+        # close spawned window and return selected elements...
+        self.hide()
+        super().accept()
+        
 
 class Poll_h5dir(QDialog):
     def __init__(self, h5file, parent=None):
@@ -1428,10 +1474,8 @@ class Xplot_GUI(QWidget):
             # read in first file, to obtain data on elements and dimensions
             if(self.filenames != []):
                 extension = os.path.splitext(self.filenames[0])[-1].lower()
-                if extension == '.spe':
-                    pass #TODO
-                elif extension == '.csv':
-                    pass #TODO
+                if extension == '.spe' or extension == '.csv':
+                    self.filedir.setText('"'+'","'.join(self.filenames)+'"')
                 elif extension == '.h5' or extension == '.nxs':
                     new_window = Poll_h5dir(self.filenames[0])
                     if new_window.exec_() == QDialog.Accepted:
@@ -1468,20 +1512,44 @@ class Xplot_GUI(QWidget):
         from matplotlib.lines import Line2D
         marks = [mark for mark in Line2D.markers.keys()][2:18]
         for index, file in enumerate(files):
-            h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
-            h5dir = file.split(':')[-1]
-            # check datatype based on h5dir
-            if 'spe' in h5dir:
-                datatype = 'spe'
-            elif 'quant' in h5dir:
-                datatype = 'scatter'
-            elif 'elyield' in h5dir:
-                datatype = 'scatter'
-            elif 'detlim' in h5dir:
-                datatype = 'scatter'
+            if file.find(':',2) != -1: #there is another : present besides e.g. C:/; as is the case for H5 file reading
+                h5file = ':'.join(file.split(':')[0:-1]) #silly win folders may have colons in the directory...
+                h5dir = file.split(':')[-1]
             else:
-                datatype = 'spe'
-            data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
+                h5file = file
+                h5dir = None
+                
+            # check datatype based on h5dir
+            if h5dir is not None:
+                if 'spe' in h5dir:
+                    datatype = 'spe'
+                elif 'quant' in h5dir:
+                    datatype = 'scatter'
+                elif 'elyield' in h5dir:
+                    datatype = 'scatter'
+                elif 'detlim' in h5dir:
+                    datatype = 'scatter'
+                else:
+                    datatype = 'spe'
+                data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
+                curvename = os.path.basename(h5file)+':'+h5dir
+            else:
+                extension = os.path.splitext(file)[-1].lower()
+                if extension == ".spe":
+                    datatype = 'spe'
+                    curvename = os.path.basename(h5file)
+                    data = Xplot_rspe(file)
+                    error = None
+                    new_window = Poll_specfg(curvename)
+                    if new_window.exec_() == QDialog.Accepted:
+                        cfgfile = new_window.cfgfile
+                        config, lines = Xplot_rcfg(cfgfile)
+                    else:
+                        config = None
+                        lines = []
+                elif extension == ".csv":
+                    pass
+                    #TODO
 
             linetype = '-'
             marker = ''
@@ -1501,7 +1569,7 @@ class Xplot_GUI(QWidget):
                 error = np.sqrt(data)
             self.datadic.append({'filename' : h5file,
                                  'h5dir' : h5dir,
-                                 'label' : os.path.basename(h5file)+':'+h5dir,
+                                 'label' : curvename,
                                  'colour' : None,
                                  'plotline' : linetype,
                                  'plotmark' : marker,
@@ -1518,7 +1586,6 @@ class Xplot_GUI(QWidget):
         self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
         if self.datadic[0]['datatype'] == 'spe':
             self.scatterframe.hide()
-            self.ymin.setText("{:.3}".format(0.5*np.min([item["data"] for item in self.datadic])))
             self.ytitle.setText("Intensity [Counts]")
             if self.datadic[0]['cfg'] is None:
                 self.xtitle.setText("Detector Channel Number")
