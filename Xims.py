@@ -144,9 +144,29 @@ def read_ims(imsfile):
     return imsf
 
 def save_as_tif(h5file, h5channel, el2plot, savefile_prefix):
+    """
+    Convert a H5 file data directory to separate *.TIF files, one for each provided element (el2plot keyword).
+
+    Parameters
+    ----------
+    h5file : string
+        File directory path to the H5 file containing the data to be converted.
+    h5channel : string
+        H5 data directory containing the (ims) data to be converted.
+    el2plot : string (list)
+        To convert all elements within the h5channel, set to 'All'. Alternatively, provide a list of strings with the element name identifiers to be converted.
+    savefile_prefix : string
+        A prefix for the file name the generated TIF files should contain.
+
+    Returns
+    -------
+    bool
+        returs True if conversion succeeded, False if unsuccesful.
+
+    """
     import tifffile
     imsdata = read_h5(h5file, h5channel)
-    if el2plot == 'All':
+    if el2plot.lower() == 'all':
         el2plot = np.asarray(imsdata.names)
     else:
         el2plot = np.array(el2plot)
