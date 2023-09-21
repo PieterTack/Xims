@@ -33,7 +33,6 @@ def Xplot_rspe(spefile):
     data_id = lines.index("$DATA:\n")
     
     spectrum = np.asarray([item for sublist in [np.fromstring(line, sep=' ') for line in lines[data_id+2:]] for item in sublist])
-    print(spectrum)
     return spectrum
 
 def Xplot_rcfg(cfgfile):
@@ -41,7 +40,13 @@ def Xplot_rcfg(cfgfile):
     config = ConfigDict.ConfigDict()
     config.read(cfgfile)
     zgr = [config['detector']['zero'], config['detector']['gain'], config['fit']['energy']] #zero, gain, E_Rayleigh
-    names = [el+' '+config['peaks'][el] for el in config['peaks']]
+    names = []
+    for el in config['peaks']:
+        if type(config['peaks'][el]) == type([]):
+            for line in config['peaks'][el]:
+                names.append(el+' '+line)
+        else:
+            names.append(el+' '+config['peaks'][el])
     names.append("Rayl")
     
     return zgr, names
