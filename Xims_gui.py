@@ -32,12 +32,22 @@ class Poll_h5dir(QDialog):
         super(Poll_h5dir, self).__init__(parent)
         # extract all Dataset paths from the H5 file
         f = h5py.File(h5file, 'r')
-        self.paths = self.descend(f, paths=None)
+        paths = self.descend(f, paths=None)
         f.close()
         
         # spawn screen allowing the user to select a given path, or multiple
         #   in this case, due to Xims only accepting ims directories, prune the list
-        self.paths = [path for path in self.paths if 'ims' in path]        
+        self.paths = [path for path in paths if 'ims' in path or 'icr' in path or 'ocr' in path]
+        if '/mot1' in paths:
+            self.paths.append('/mot1')
+        if '/mot2' in paths:
+            self.paths.append('/mot2')
+        if '/raw/I0' in paths:
+            self.paths.append('/raw/I0')
+        if '/raw/I1' in paths:
+            self.paths.append('/raw/I1')
+        if '/raw/acquisition_time' in paths:
+            self.paths.append('/raw/acquisition_time')
         # build widgets
         layout = QVBoxLayout()
         self.task = QLabel('Select your H5 file directory of choice:')

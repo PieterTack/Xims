@@ -206,14 +206,13 @@ def read_h5(h5file, datadir):
                 try:
                     nms = file['/'.join(path.split('/')[0:-1])+'/names']
                 except Exception:
-                    nms = [''.encode('utf8')]*imsdat.shape[0]
+                    nms = [path.split('/')[-1].encode('utf8')]*imsdat.shape[0]
                 for nm in nms: 
                     names.append(nm)
                 data.append(imsdat)
             except Exception:
                 print("Error: unknown data directory: "+path+" in "+h5file)
                 return None
-    
     imsdat = np.concatenate(data, axis=0)
     
     # rearrange ims array to match what plotims expects
