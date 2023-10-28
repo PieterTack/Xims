@@ -74,7 +74,10 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
 
         cfgdir = 'fit/'+detchnl[0]+'/cfg'
         if cfgdir in f.keys():
-            cfg = f[cfgdir][()].decode('utf8')
+            try:
+                cfg = f[cfgdir][()].decode('utf8')
+            except AttributeError:
+                cfg = f[cfgdir][()]
         else:
             cfg = None
 
