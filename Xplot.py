@@ -1534,6 +1534,8 @@ class Xplot_GUI(QWidget):
                     datatype = 'scatter'
                 elif 'detlim' in h5dir:
                     datatype = 'scatter'
+                elif 'rel_dif' in h5dir:
+                    datatype='scatter'
                 else:
                     datatype = 'spe'
                 data, lines, config, error = Xplot_rh5(h5file, channel=h5dir)  #Todo: in principle we could also have this function look for a unit attribute to data
@@ -1587,7 +1589,7 @@ class Xplot_GUI(QWidget):
                                  })
 
         # set GUI fields to the appropriate values
-        self.ymax.setText("{:.3}".format(1.5*np.max([item["data"] for item in self.datadic])))
+        self.ymax.setText("{:.3}".format(1.5*np.max([np.max(item["data"]) for item in self.datadic])))
         self.ymin.setText("{:.3}".format(0.5*np.min([np.min(item["data"][np.where(item["data"]!=0)]) for item in self.datadic])))
         if self.datadic[0]['datatype'] == 'spe':
             self.scatterframe.hide()
@@ -1611,6 +1613,10 @@ class Xplot_GUI(QWidget):
             self.scatterframe.show()
             self.xtitle.setText("Atomic Number [Z]")
             self.ytitle.setText("Detection Limit [ppm]")
+        elif 'rel_dif' in self.datadic[0]['h5dir']:
+            self.scatterframe.show()
+            self.xtitle.setText("Atomic Number [Z]")
+            self.ytitle.setText("Conc./Mean CI [a.u.]")
         self.xmin.setText("{:.3}".format(np.min([np.min(item["xvals"].astype(float)) for item in self.datadic])))
         self.xmax.setText("{:.3}".format(np.max([np.max(item["xvals"].astype(float)) for item in self.datadic])))
     

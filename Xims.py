@@ -651,7 +651,7 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         plt.savefig(save, bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close()        
 
-def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, cb_opts=None, colim_opts=None, save=None):
+def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, cb_opts=None, colim_opts=None, save=None, dpi=420):
     if colim_opts:
         ncols = colim_opts.ncol
         nrows = colim_opts.nrow
@@ -701,7 +701,7 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
                     cnt = cnt+1
 
     # Perform plotting. plot_image will know how to handle collated images based on amount of rows and columns.
-    plot_image(datacube, names, colortable, plt_opts=plt_opts, sb_opts=sb_opts, cb_opts=cb_opts, clim=cb_lim, save=save, subplot=(ncols, nrows))
+    plot_image(datacube, names, colortable, plt_opts=plt_opts, sb_opts=sb_opts, cb_opts=cb_opts, clim=cb_lim, save=save, subplot=(ncols, nrows), dpi=dpi)
     # set fonts back to normal value for further imaging; probably useless as sb_opts will be local variable, but meh
     if sb_opts:
         sb_opts.fontsize = sb_opts.fontsize*2 
