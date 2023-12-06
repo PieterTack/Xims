@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QGridLayout
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QDialog, QLabel, QButtonGroup, \
         QLineEdit, QTabWidget, QFileDialog, QRadioButton, QTableWidgetItem, QFrame, \
-            QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView
+            QListWidget, QAbstractItemView, QSplitter, QTableWidget, QHeaderView, QToolButton
 
 
 def Xplot_rspe(spefile):
@@ -53,9 +53,19 @@ def Xplot_rcfg(cfgfile):
 
 def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
     with h5py.File(h5file, 'r') as f:
-        spe = np.array(f[channel])
-        spe[~np.isfinite(spe)] = 0. # remove NaN and Inf values
+        # check if this was a sub-selection of /spectra or /ims etc
+        data2d = False
+        if '(' in channel:
+            channel = channel.split('(')
+            dataid = int(channel[1].split(')')[0])
+            channel = channel[0]
+            data2d = True
         
+        spe = np.array(f[channel])
+        if data2d:
+            spe = spe.reshape(-1,spe.shape[2])[dataid,:]
+        spe[~np.isfinite(spe)] = 0. # remove NaN and Inf values
+                
         # find detector channel
         detchnl = [detchnl for detchnl in channel.split('/') if 'channel' in detchnl]
         
@@ -89,6 +99,8 @@ def Xplot_rh5(h5file, channel='raw/channel00/sumspec'):
         else:
             error = None
         if error is not None:
+            if data2d:
+                error = error.reshape(-1,error.shape[2])[dataid,:]
             error[~np.isfinite(error)] = 0. # remove NaN and Inf values
 
     if cfg is not None:
@@ -312,6 +324,43 @@ class Poll_specfg(QDialog):
         
     def read_cfgpath(self):
         self.cfgfile = QFileDialog.getOpenFileName(self, caption="Open config file", filter="CFG (*.cfg)")[0]
+        # close spawned window and return selected elements...
+        self.hide()
+        super().accept()
+        
+class Poll_h5motpos(QDialog):
+    def __init__(self, h5file, parent=None):
+        super(Poll_h5motpos, self).__init__(parent)
+        # extract all Dataset paths from the H5 file
+        with h5py.File(h5file, 'r') as f:
+            self.mot1 = [n[0] for n in f['mot1']]
+            self.mot2 = [n[0] for n in f['mot2']]
+        
+        # spawn screen allowing the user to select a given path, or multiple
+        self.paths = ['\t'.join(map(str,x)) for x in zip(self.mot1, self.mot2)]        
+        # build widgets
+        layout = QVBoxLayout()
+        self.task = QLabel('Select corresponding motor positions of the data you wish to display:')
+        layout.addWidget(self.task)
+        current_file = QLabel('   current: '+os.path.basename(h5file))
+        layout.addWidget(current_file)
+        self.path_select = QListWidget()
+        self.path_select.addItems(self.paths)
+        self.path_select.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        layout.addWidget(self.path_select)
+        self.paths4all = QCheckBox("Use same indices for all following files.")
+        self.paths4all.setChecked(True)
+        layout.addWidget(self.paths4all)
+        self.read_but = QPushButton("Read")
+        layout.addWidget(self.read_but)
+        # show window
+        self.setLayout(layout)
+        self.show()
+        # handle events
+        self.read_but.clicked.connect(self.read_path)
+        
+    def read_path(self):
+        self.motid = [self.paths.index(item.text()) for item in self.path_select.selectedItems()]
         # close spawned window and return selected elements...
         self.hide()
         super().accept()
@@ -551,11 +600,19 @@ class Xplot_GUI(QWidget):
         # browse buttons
         self.file_lbl = QLabel("File:")
         self.filedir = QLineEdit("")
+        self.leftbutton = QToolButton()
+        self.leftbutton.setArrowType(Qt.LeftArrow)
+        self.rightbutton = QToolButton()
+        self.rightbutton.setArrowType(Qt.RightArrow)
         self.browse = QPushButton("...")
         self.browse.setAutoDefault(False) # set False as otherwise this button is called on each return
         self.browse.setMaximumWidth(25)
         layout_browseh5.addWidget(self.file_lbl)
         layout_browseh5.addWidget(self.filedir)
+        layout_browseh5.addWidget(self.leftbutton)
+        layout_browseh5.addWidget(self.rightbutton)
+        self.leftbutton.setVisible(False)
+        self.rightbutton.setVisible(False)
         layout_browseh5.addWidget(self.browse)
         layout_main.addLayout(layout_browseh5)
 
@@ -946,6 +1003,8 @@ class Xplot_GUI(QWidget):
         self.savepng.clicked.connect(self.save_png)
         self.save_settings.clicked.connect(self.savesettings)
         self.load_settings.clicked.connect(self.loadsettings)
+        self.leftbutton.clicked.connect(self.move_id_down)
+        self.rightbutton.clicked.connect(self.move_id_up)
 
 
     def update_plot(self):
@@ -1326,7 +1385,10 @@ class Xplot_GUI(QWidget):
     def save_png(self):
         imagename = QFileDialog.getSaveFileName(self, caption="Save PNG in:", filter="PNG (*.png)")[0]
         if len(imagename) != 0:
-            self.mpl.canvas.print_figure(imagename, dpi=300)
+            if imagename.lower().ensdwith('.png'):
+                self.mpl.canvas.print_figure(imagename, dpi=300)
+            else:
+                self.mpl.canvas.print_figure(imagename+'.png', dpi=300)
 
     def savesettings(self):
         # figure out the current curve sequence from the file list
@@ -1392,6 +1454,8 @@ class Xplot_GUI(QWidget):
             }
         
         savefile = QFileDialog.getSaveFileName(self, caption="Save Xplot settings file:", filter="XPL (*.xpl)")[0]
+        if not savefile.lower().endswith('.xpl'):
+            savefile += '.xpl'
         with open(savefile, "w") as f:
             json.dump(data, f)  # encode dict into JSON
         
@@ -1473,8 +1537,33 @@ class Xplot_GUI(QWidget):
         self.datadic = temp
                 
         self.update_plot()
+
+    def move_id_down(self):
+        # read the data from all files/, add the data identifier -1 if a bracket is found in the datadir
+        files = self.filedir.text()[1:-1].split('","')
+        for index, file in enumerate(files):
+            if '(' in file:
+                splitfile = file.split('(')
+                oldid = int(splitfile[-1].split(')')[0])
+                newid = oldid-1
+                files[index] = splitfile[0]+'('+str(newid)+')'
+                
+        self.filedir.setText('"'+'","'.join(files)+'"')
+        self.read_files()
         
-        
+    def move_id_up(self):
+        # read the data from all files/, add the data identifier +1 if a bracket is found in the datadir
+        files = self.filedir.text()[1:-1].split('","')
+        for index, file in enumerate(files):
+            if '(' in file:
+                splitfile = file.split('(')
+                oldid = int(splitfile[-1].split(')')[0])
+                newid = oldid+1
+                files[index] = splitfile[0]+'('+str(newid)+')'
+                
+        self.filedir.setText('"'+'","'.join(files)+'"')
+        self.read_files()
+
         
     def browse_app(self):
         self.filenames = QFileDialog.getOpenFileNames(self, caption="Open spectrum file(s)", filter="H5 (*.h5);;SPE (*.spe);;CSV (*.csv);;NXS (*.nxs)")[0]
@@ -1488,6 +1577,17 @@ class Xplot_GUI(QWidget):
                     new_window = Poll_h5dir(self.filenames[0])
                     if new_window.exec_() == QDialog.Accepted:
                         subdirs = new_window.h5dir
+                        # if an ims directory was chosen, present a selection window to select the requested motor positions to plot
+                        if any(['/spectra' in dir for dir in subdirs]):
+                            for index in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
+                                spectraid_win = Poll_h5motpos(self.filenames[0])
+                                if spectraid_win.exec_() == QDialog.Accepted:
+                                    basesub = subdirs[index]
+                                    spectraid = spectraid_win.motid
+                                    subdirs[index] = basesub+'('+str(spectraid[0])+')'
+                                    if len(spectraid) > 1:
+                                        for i,x in enumerate(spectraid[1:]):
+                                            subdirs.insert(index+1+i, basesub+'('+str(x)+')')
                         subdirs4all = new_window.paths4all.isChecked()
                     else:
                         subdirs = None
@@ -1501,6 +1601,17 @@ class Xplot_GUI(QWidget):
                                 new_window = Poll_h5dir(file)
                                 if new_window.exec_() == QDialog.Accepted:
                                     subdirs = new_window.h5dir
+                                    # if an ims directory was chosen, present a selection window to select the requested motor positions to plot
+                                    if any(['/spectra' in dir for dir in subdirs]):
+                                        for index in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
+                                            spectraid_win = Poll_h5motpos(self.filenames[0])
+                                            if spectraid_win.exec_() == QDialog.Accepted:
+                                                basesub = subdirs[index]
+                                                spectraid = spectraid_win.motid
+                                                subdirs[index] = basesub+'('+str(spectraid[0])+')'
+                                                if len(spectraid) > 1:
+                                                    for i,x in enumerate(spectraid[1:]):
+                                                        subdirs.insert(index+1+i, basesub+'('+str(x)+')')
                                     subdirs4all = new_window.paths4all.isChecked()
                                 if subdirs4all == True:
                                     # use this subdir for all following filenames and then leave for loop...
@@ -1516,6 +1627,13 @@ class Xplot_GUI(QWidget):
     def read_files(self, update=True):
         # read the data from all files/directories
         files = self.filedir.text()[1:-1].split('","')
+        if any(['(' in file for file in files]):
+            self.leftbutton.setVisible(True)
+            self.rightbutton.setVisible(True)
+        else:
+            self.leftbutton.setVisible(False)
+            self.rightbutton.setVisible(False)
+
         self.datadic = []
         from matplotlib.lines import Line2D
         marks = [mark for mark in Line2D.markers.keys()][2:18]
