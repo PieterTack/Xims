@@ -1630,6 +1630,9 @@ class Xplot_GUI(QWidget):
         if any(['(' in file for file in files]):
             self.leftbutton.setVisible(True)
             self.rightbutton.setVisible(True)
+        else:
+            self.leftbutton.setVisible(False)
+            self.rightbutton.setVisible(False)
 
         self.datadic = []
         from matplotlib.lines import Line2D
