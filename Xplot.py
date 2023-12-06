@@ -1579,15 +1579,15 @@ class Xplot_GUI(QWidget):
                         subdirs = new_window.h5dir
                         # if an ims directory was chosen, present a selection window to select the requested motor positions to plot
                         if any(['/spectra' in dir for dir in subdirs]):
-                            for index in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
+                            for idx in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
                                 spectraid_win = Poll_h5motpos(self.filenames[0])
                                 if spectraid_win.exec_() == QDialog.Accepted:
-                                    basesub = subdirs[index]
+                                    basesub = subdirs[idx]
                                     spectraid = spectraid_win.motid
-                                    subdirs[index] = basesub+'('+str(spectraid[0])+')'
+                                    subdirs[idx] = basesub+'('+str(spectraid[0])+')'
                                     if len(spectraid) > 1:
                                         for i,x in enumerate(spectraid[1:]):
-                                            subdirs.insert(index+1+i, basesub+'('+str(x)+')')
+                                            subdirs.insert(idx+1+i, basesub+'('+str(x)+')')
                         subdirs4all = new_window.paths4all.isChecked()
                     else:
                         subdirs = None
@@ -1603,15 +1603,15 @@ class Xplot_GUI(QWidget):
                                     subdirs = new_window.h5dir
                                     # if an ims directory was chosen, present a selection window to select the requested motor positions to plot
                                     if any(['/spectra' in dir for dir in subdirs]):
-                                        for index in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
+                                        for idx in reversed([i for i, x in enumerate(['/spectra' in dir for dir in subdirs]) if x]):
                                             spectraid_win = Poll_h5motpos(self.filenames[0])
                                             if spectraid_win.exec_() == QDialog.Accepted:
-                                                basesub = subdirs[index]
+                                                basesub = subdirs[idx]
                                                 spectraid = spectraid_win.motid
-                                                subdirs[index] = basesub+'('+str(spectraid[0])+')'
+                                                subdirs[idx] = basesub+'('+str(spectraid[0])+')'
                                                 if len(spectraid) > 1:
                                                     for i,x in enumerate(spectraid[1:]):
-                                                        subdirs.insert(index+1+i, basesub+'('+str(x)+')')
+                                                        subdirs.insert(idx+1+i, basesub+'('+str(x)+')')
                                     subdirs4all = new_window.paths4all.isChecked()
                                 if subdirs4all == True:
                                     # use this subdir for all following filenames and then leave for loop...
