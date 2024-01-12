@@ -1385,7 +1385,7 @@ class Xplot_GUI(QWidget):
     def save_png(self):
         imagename = QFileDialog.getSaveFileName(self, caption="Save PNG in:", filter="PNG (*.png)")[0]
         if len(imagename) != 0:
-            if imagename.lower().ensdwith('.png'):
+            if imagename.lower().endswith('.png'):
                 self.mpl.canvas.print_figure(imagename, dpi=300)
             else:
                 self.mpl.canvas.print_figure(imagename+'.png', dpi=300)
