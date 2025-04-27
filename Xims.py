@@ -123,7 +123,7 @@ class Scale_opts():
         else: self.fontsize = 16
         
 class Collated_image_opts():
-    def __init__(self, ncol=False, nrow=False, cb=False):
+    def __init__(self, ncol=False, nrow=False, cb=False, clim=None):
         if ncol:
             self.ncol = ncol
         else: self.ncol = 3
@@ -133,6 +133,9 @@ class Collated_image_opts():
         if cb:
             self.cb = cb
         else: self.cb = False
+        if clim:
+            self.clim = clim
+        else: self.clim = None
 
 def read_ims(imsfile):
     element_array = ""
@@ -613,20 +616,25 @@ def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=No
         if n_el == 1:
             data = imsdata[:,:]
             name = imsname
+            collim = clim
         else:
             data = imsdata[:,:,j]
             name = imsname[j]
-        if type(clim) != type(None):
+            if clim is not None: #'NoneType' object is not subscriptable
+                collim = clim[j]
+            else:
+                collim = None
+        if type(collim) != type(None):
             # clim = clim
-            if(clim[0] > np.min(data) and clim[1] < np.max(data)):
+            if(collim[0] > np.min(data) and collim[1] < np.max(data)):
                 extend = 'both'
-            elif clim[0] > np.min(data):
+            elif collim[0] > np.min(data):
                 extend = 'min'
-            elif clim[1] < np.max(data):
+            elif collim[1] < np.max(data):
                 extend = 'max'
             else:
                 extend = 'neither'
-            limit = clim
+            limit = collim
         else:
             limit = None
             extend = 'neither'
@@ -675,13 +683,13 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
         nrows = colim_opts.nrow
         if colim_opts.cb == False:
             cb_opts = None # dont't draw colorbar if chosen (default is to draw)
+        if type(colim_opts.clim) != type(None):
+            clim = colim_opts.clim
+        else: clim = None
     else:
         ncols = int(np.floor(np.sqrt(len(el_selection))))
         nrows = int(np.ceil(len(el_selection)/ncols))
     if plt_opts:
-        if type(plt_opts.clim) != type(None):
-            clim = plt_opts.clim
-        else: clim = None
         plt_opts.title_fontsize = plt_opts.title_fontsize/2
     else:
         clim = None

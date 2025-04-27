@@ -585,6 +585,7 @@ class Plotims(QMainWindow):
         tab_colim_layout = QVBoxLayout()
         colim_line0_layout = QHBoxLayout()
         colim_line1_layout = QHBoxLayout()
+        colim_line2_layout = QHBoxLayout()
         colim_line0_layout.addWidget(QLabel("Collated Imaging:"))
         colim_line0_layout.addStretch()
         colim_line1_layout.addWidget(QLabel("# of columns:"))
@@ -597,8 +598,15 @@ class Plotims(QMainWindow):
         self.colim_plotcb.setChecked(True)
         colim_line1_layout.addWidget(self.colim_plotcb)
         colim_line1_layout.addStretch()
+        colim_line2_layout.addWidget(QLabel("Rel. Colorbar Limits (e.g. 0.2-0.8):"))
+        self.colim_clim = QLineEdit("None")
+        self.colim_clim.setMaximumWidth(60)
+        self.colim_clim.setMinimumWidth(30)
+        colim_line2_layout.addWidget(self.colim_clim)
+        colim_line2_layout.addStretch()
         tab_colim_layout.addLayout(colim_line0_layout)
         tab_colim_layout.addLayout(colim_line1_layout)
+        tab_colim_layout.addLayout(colim_line2_layout)
         tab_colim_layout.addStretch()
         self.tab_colim.setLayout(tab_colim_layout)
         self.opt_tabs.addTab(self.tab_colim, "Collated Image")        
@@ -1497,7 +1505,11 @@ class Plotims(QMainWindow):
                 colim_ncol = int(self.colim_ncol.text())
             colim_nrow = int(np.ceil(len(self.el_selection)/colim_ncol))
             colim_cb = self.colim_plotcb.isChecked()
-            self.colim_opts = Xims.Collated_image_opts(ncol=colim_ncol, nrow=colim_nrow, cb=colim_cb)
+            if self.colim_clim.text().lower() == "none":
+                colim_clim = None
+            else:
+                colim_clim = [float(nr) for nr in self.colim_clim.text().split('-')][:2]
+            self.colim_opts = Xims.Collated_image_opts(ncol=colim_ncol, nrow=colim_nrow, cb=colim_cb, clim=colim_clim)
         else:
             self.colim_opts = None
 
