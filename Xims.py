@@ -8,6 +8,7 @@ Based on plotims_gui from IDL
 """
 
 import numpy as np
+from copy import deepcopy
 from scipy import stats
 import h5py
 import matplotlib.pyplot as plt
@@ -18,7 +19,21 @@ class ims():
     def __init__(self):
         self.data = np.zeros((2,2))
         self.names = ""
-    
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result    
+
 class Resize():
     def __init__(self):
         self.xstart = 0
@@ -398,10 +413,10 @@ def ims_data_manip(imsdata, resize=None, binning=None, neg2zero=None, mathop=Non
     if mathop:
         if(mathop == 'sqrt'):
             imsdata[imsdata < 0] = 0
-            imsdata = np.sqrt(imsdata)
+            imsdata = np.sqrt(imsdata[:])
         elif(mathop == 'log'):
             imsdata[imsdata < 1] = 1
-            imsdata = np.log10(imsdata)
+            imsdata = np.log10(imsdata[:])
     # rotate
     if rotate:
         # first rotate over chosen angle
@@ -542,6 +557,9 @@ def add_scalebar(target, pix_size, scl_size, scale_text,scale_fontsize=16, dir='
         target.text(-3, scl_size/(2.*pix_size), scale_text, ha='right', va='center', size=scale_fontsize, rotation=90, clip_on=False)
 
 def plot_image(imsdata, imsname, ctable, plt_opts=None, sb_opts=None, cb_opts=None, clim=None, save=None, subplot=None, dpi=420):
+    # set bipolar colour map if requested
+    if ctable.lower() == 'bipolar':
+        ctable = bipolar()
     # set option for discrete colorbar, only if 10 or less values are plotted
     if(cb_opts and cb_opts.discr and imsdata.max()-imsdata.min() <= 10):
         ctable = plt.cm.get_cmap(ctable, np.around(imsdata.max()-imsdata.min()+1).astype(int))
@@ -710,3 +728,49 @@ def plot_colim(imsdata, el_selection, colortable, plt_opts=None, sb_opts=None, c
     if cb_opts:
         cb_opts.fs_title = cb_opts.fs_title*2
         cb_opts.fs_num = cb_opts.fs_num*2
+
+def bipolar(lutsize=256, neutral=1/3, interp=None):
+    # inspired by https://github.com/endolith/bipolar-colormap
+    import numpy as np
+    import scipy.interpolate
+    from matplotlib import cm
+
+    n = neutral
+    if 0 <= n <= 0.5:
+        if interp is None:
+            # Seems to work well with dark neutral colors
+            interp = 'linear'
+
+        data = (
+            (0, 1, 1),  # cyan
+            (0, 0, 1),  # blue
+            (n, n, n),  # dark neutral
+            (1, 0, 0),  # red
+            (1, 1, 0),  # yellow
+        )
+    elif 0.5 < n <= 1:
+        if interp is None:
+            # Seems to work better with bright neutral colors
+            # Produces bright yellow or cyan rings otherwise
+            interp = 'cubic'
+
+        data = (
+            (0, 0, 1),  # blue
+            (0, 1, 1),  # cyan
+            (n, n, n),  # light neutral
+            (1, 1, 0),  # yellow
+            (1, 0, 0),  # red
+        )
+    else:
+        raise ValueError('n must be 0.0 < n < 1.0')
+
+    xi = np.linspace(0, 1, len(data))
+    cm_interp = scipy.interpolate.interp1d(xi, data, axis=0, kind=interp)
+    xnew = np.linspace(0, 1, lutsize)
+    ynew = cm_interp(xnew)
+
+    # Non-linear interpolation exceeds the RGB cube
+    ynew = np.clip(ynew, 0, 1)
+
+    return cm.colors.LinearSegmentedColormap.from_list('bipolar', ynew,
+                                                       lutsize)
