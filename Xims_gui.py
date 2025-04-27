@@ -31,9 +31,8 @@ class Poll_h5dir(QDialog):
     def __init__(self, h5file, parent=None):
         super(Poll_h5dir, self).__init__(parent)
         # extract all Dataset paths from the H5 file
-        f = h5py.File(h5file, 'r')
-        paths = self.descend(f, paths=None)
-        f.close()
+        with h5py.File(h5file, 'r', locking=True) as f:
+            paths = self.descend(f, paths=None)
         
         # spawn screen allowing the user to select a given path, or multiple
         #   in this case, due to Xims only accepting ims directories, prune the list
@@ -1071,7 +1070,7 @@ class Plotims(QMainWindow):
 
     def rgb_eoi_red(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_red.currentIndex()].min()
@@ -1081,7 +1080,7 @@ class Plotims(QMainWindow):
 
     def rgb_eoi_green(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_green.currentIndex()].min()
@@ -1091,7 +1090,7 @@ class Plotims(QMainWindow):
         
     def rgb_eoi_blue(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.rgb_blue.currentIndex()].min()
@@ -1101,7 +1100,7 @@ class Plotims(QMainWindow):
         
     def cbcut_eoi_change(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_min = imsdata[:,:,self.cbcut_eoi.currentIndex()].min()
@@ -1112,7 +1111,7 @@ class Plotims(QMainWindow):
     
     def ratio_eoi_change(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_nom = self.ratio_nom.currentIndex()
@@ -1140,7 +1139,7 @@ class Plotims(QMainWindow):
 
     def adj_imsdim(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         # update the appropriate fields
@@ -1151,7 +1150,7 @@ class Plotims(QMainWindow):
 
     def cbcut_preview(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi = self.cbcut_eoi.currentIndex()
@@ -1172,7 +1171,7 @@ class Plotims(QMainWindow):
         
     def ratio_preview(self):
         # extract data and perform various operations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
         eoi_nom = self.ratio_nom.currentIndex()
@@ -1198,7 +1197,7 @@ class Plotims(QMainWindow):
 
     def rgb_view(self):
         # perform data manipulations
-        imsdata = self.ims_data.data.copy()
+        imsdata = np.array(self.ims_data.data[:], copy=True)
         # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
         self.set_opts()
         imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
@@ -1464,13 +1463,13 @@ class Plotims(QMainWindow):
             for i in range(len(self.filenames[0][:])):
                 if i == 0:
                     ims = self.ims_data
-                    imsdata = self.ims_data.data.copy()
+                    imsdata = np.array(self.ims_data.data[:], copy=True)
                 else:
                     if self.filenames[0][i].split('.')[-1] == 'h5':
                         ims = Xims.read_h5(self.filenames[0][i], self.h5dir)
                     elif self.filenames[0][i].split('.')[-1] == 'ims':
                         ims = Xims.read_ims(self.filenames[0][i])
-                    imsdata = ims.data.copy()
+                    imsdata = np.array(ims.data[:], copy=True)
                 # perform data operations
                 imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
                 # obtain min and max for each element, and check if higher than previously registered value
@@ -1547,7 +1546,7 @@ class Plotims(QMainWindow):
         #       perform all data manipulations within this if clause
         if(self.plot_opts_rgb.isChecked()):
             # prepare ims data
-            imsdata = self.ims_data.data.copy()
+            imsdata = np.array(self.ims_data.data[:], copy=True)
             # perform data operations
             imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)
 
@@ -1585,7 +1584,7 @@ class Plotims(QMainWindow):
                 print("Error: rgb_view: minimum cutoff values must be strictly smaller than maximum cutoff values.")
             else:
                 # prepare rgb array to plot (each colour channel must be scaled between 0 and 255)
-                rgb_im = Xims.prepare_rgb_data(imsdata.copy(), eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
+                rgb_im = Xims.prepare_rgb_data(np.array(imsdata, copy=True), eoi_red, eoi_green, eoi_blue, rmin, rmax, gmin, gmax, bmin, bmax)
                 # matplotlib plotting, to save image
                 fig = plt.figure(figsize=(10,10))
                 gs = gridspec.GridSpec(2,1, height_ratios=[0.2,1])
@@ -1631,14 +1630,14 @@ class Plotims(QMainWindow):
             # read ims file
             if i == 0:
                 ims = self.ims_data
-                imsdata = self.ims_data.data
+                imsdata = np.array(self.ims_data.data[:], copy=True)
             else:
                 print(self.filenames[0][i])
                 if self.filenames[0][i].split('.')[-1] == 'h5':
-                        ims = Xims.read_h5(self.filenames[0][i], self.h5dir)
+                    ims = Xims.read_h5(self.filenames[0][i], self.h5dir)
                 elif self.filenames[0][i].split('.')[-1] == 'ims':
                     ims = Xims.read_ims(self.filenames[0][i])
-                imsdata = ims.data
+                imsdata = np.array(ims.data[:], copy=True)
             filename_base = self.filenames[0][i].split(".")
             filename_base = filename_base[0]
 
@@ -1657,8 +1656,10 @@ class Plotims(QMainWindow):
             if self.plot_opts_colim.isChecked():
                 filename = "_"+self.plt_opts.ct+"_overview"+addendum+out_ext
                 filename = filename_base+filename.replace(" ","") #remove all white spaces
-                ims.data = imsdata
-                Xims.plot_colim(ims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename, dpi=np.round(float(self.save_dpi.text())))
+                newims = Xims.ims()
+                newims.names = ims.names
+                newims.data = imsdata
+                Xims.plot_colim(newims, self.el_selection, self.plt_opts.ct, plt_opts=self.plt_opts, sb_opts=self.sb_opts, cb_opts=self.cb_opts, colim_opts=self.colim_opts, save=filename, dpi=np.round(float(self.save_dpi.text())))
 
             # perform individual image plotting
             if self.plot_opts_normplot.isChecked():
@@ -1680,7 +1681,7 @@ class Plotims(QMainWindow):
         # colorbar cutoff image
         if self.plot_opts_cbcut.isChecked():
             ims = self.ims_data
-            imsdata = self.ims_data.data.copy()
+            imsdata = np.array(self.ims_data.data[:], copy=True)
             # perform data manipulations (resize, sqrt, log, rotation, binning, ...)
             imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
             # plot cutoff image with selected limits
@@ -1701,7 +1702,7 @@ class Plotims(QMainWindow):
         # ratio image
         if self.data_opts_ratio.isChecked():
             ims = self.ims_data
-            imsdata = self.ims_data.data.copy()
+            imsdata = np.array(self.ims_data.data[:], copy=True)
             # perform data manipulations (resize, sqrt, log, rotation, binning, ...)
             imsdata = Xims.ims_data_manip(imsdata, resize=self.resize_opts, binning=self.bin_opts, neg2zero=self.plt_opts.n2z, mathop=self.math_opt, rotate=self.rot_opts)            
             eoi_nom = self.ratio_nom.currentIndex()
