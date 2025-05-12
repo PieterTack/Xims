@@ -422,7 +422,7 @@ class CurveSequence(QDialog):
         layout_main = QVBoxLayout()
         self.mainobj = mainobj
         
-        # we need 5 columns: Sequence, filename (ineditable), datadir (ineditable), label, colour
+        # we need 7 columns: Sequence, filename (ineditable), datadir (ineditable), label, colour
         self.table_widget = QTableWidget(len(self.mainobj.datadic), 7)
         header = self.table_widget.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
