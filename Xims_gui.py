@@ -47,6 +47,10 @@ class Poll_h5dir(QDialog):
             self.paths.append('/raw/I1')
         if '/raw/acquisition_time' in paths:
             self.paths.append('/raw/acquisition_time')
+        # we also want to read ID21 folders with regrid directory...
+        if any('regrid' in path for path in paths):
+            self.paths = [str(path) for path in np.unique(['/'.join(path.split('/')[:-1]) for path in paths if 'regrid/results/parameters' in path])]
+            
         # build widgets
         layout = QVBoxLayout()
         self.task = QLabel('Select your H5 file directory of choice:')
@@ -968,7 +972,10 @@ class Plotims(QMainWindow):
                 self.new_window = Poll_h5dir(self.filenames[0][0])
                 if self.new_window.exec_() == QDialog.Accepted:
                     self.h5dir = self.new_window.h5dir
-                self.ims_data = Xims.read_h5(self.filenames[0][0], self.h5dir)
+                if any('regrid' for path in self.h5dir): #Future: maybe have to check whether self.h5dir is a list first...
+                    self.ims_data = Xims.read_h5id21(self.filenames[0][0], self.h5dir)
+                else:
+                    self.ims_data = Xims.read_h5(self.filenames[0][0], self.h5dir)
             ims_dim = self.ims_data.data.shape
             self.npix_x.setText(str(ims_dim[1]))
             self.npix_y.setText(str(ims_dim[0]))

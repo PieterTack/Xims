@@ -242,6 +242,33 @@ def read_h5(h5file, datadir):
     rv.names = [n.decode('utf8') for n in names[:]]
     return rv
 
+def read_h5id21(h5file, datadir):
+    if type(datadir) is not type(list()):
+        datadir = [datadir]
+    with h5py.File(h5file, 'r') as file:
+        data = []
+        names = []
+        for path in datadir:
+            try:
+                for key in file[path].keys():
+                    if len(file[path+'/'+key].shape) == 2:
+                        data.append(np.array(file[path+'/'+key]))
+                        names.append(key.replace('_', ' '))
+                data = np.array(data)
+            except Exception:
+                print("Error: unknown data directory: "+path+" in "+h5file)
+                return None
+    imsdat = data
+    
+    # rearrange ims array to match what plotims expects
+    imsdata = np.moveaxis(imsdat, 0, -1)
+    imsdata[np.isnan(imsdata)] = 0.
+    
+    rv = ims()
+    rv.data = np.asarray(imsdata)
+    rv.names = [n for n in names[:]]
+    return rv
+
 def write_ims(imsdata, names, filename):
     with open(filename, "w") as f:
         f.write(str(len(imsdata.shape)-1)+'\n')
