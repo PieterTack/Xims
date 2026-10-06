@@ -972,7 +972,7 @@ class Plotims(QMainWindow):
                 self.new_window = Poll_h5dir(self.filenames[0][0])
                 if self.new_window.exec_() == QDialog.Accepted:
                     self.h5dir = self.new_window.h5dir
-                if any('regrid' for path in self.h5dir): #Future: maybe have to check whether self.h5dir is a list first...
+                if any('regrid' in path for path in self.h5dir): #Future: maybe have to check whether self.h5dir is a list first...
                     self.ims_data = Xims.read_h5id21(self.filenames[0][0], self.h5dir)
                 else:
                     self.ims_data = Xims.read_h5(self.filenames[0][0], self.h5dir)
